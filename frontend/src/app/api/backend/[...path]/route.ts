@@ -54,10 +54,13 @@ async function handle(request: NextRequest, { params }: Ctx) {
       if (refreshed) res = await forward(request, path, body, refreshed.accessToken);
     }
 
-    const response = new NextResponse(res.status === 204 ? null : await res.arrayBuffer(), {
-      status: res.status,
-      headers: { "Content-Type": res.headers.get("content-type") ?? "application/json" },
-    });
+    const headers: Record<string, string> = { "Content-Type": res.headers.get("content-type") ?? "application/json" };
+    // 증빙 원본 파일 응답의 보안·표시 헤더는 그대로 전달한다.
+    for (const name of ["content-disposition", "x-content-type-options", "cache-control"]) {
+      const value = res.headers.get(name);
+      if (value) headers[name] = value;
+    }
+    const response = new NextResponse(res.status === 204 ? null : await res.arrayBuffer(), { status: res.status, headers });
     if (refreshed) setSessionCookies(response, refreshed);
     else if (res.status === 401) clearSessionCookies(response);
     return response;

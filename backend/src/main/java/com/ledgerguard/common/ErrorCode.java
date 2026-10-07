@@ -30,6 +30,27 @@ public enum ErrorCode {
     JOURNAL_NOT_BALANCED(HttpStatus.UNPROCESSABLE_ENTITY, "차변 합계와 대변 합계가 일치하지 않습니다."),
     JOURNAL_LINE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "전표 라인이 올바르지 않습니다."),
     JOURNAL_ALREADY_VOID(HttpStatus.CONFLICT, "이미 취소된 전표입니다."),
+    JOURNAL_RECONCILED(HttpStatus.CONFLICT, "은행 대사가 확정된 전표입니다. 대사 매칭을 먼저 취소하세요."),
+
+    BANK_ACCOUNT_GL_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "은행 계좌에는 활성화된 자산 계정과목을 연결해야 합니다."),
+    BANK_ACCOUNT_GL_DUPLICATE(HttpStatus.CONFLICT, "이미 다른 은행 계좌에 연결된 계정과목입니다."),
+    BANK_ACCOUNT_INACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "비활성화된 은행 계좌입니다."),
+    IMPORT_FILE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "은행 거래내역 파일을 읽을 수 없습니다."),
+    IMPORT_ROW_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "올바르지 않은 행이 있어 업로드하지 않았습니다. 파일을 수정한 뒤 다시 업로드하세요."),
+    IMPORT_FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "파일이 너무 큽니다. (최대 2MB)"),
+
+    DOCUMENT_FILE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "PNG, JPEG, PDF 파일만 업로드할 수 있습니다. (최대 10MB)"),
+    DOCUMENT_DUPLICATE(HttpStatus.CONFLICT, "이미 업로드한 파일입니다."),
+    DOCUMENT_STATE_INVALID(HttpStatus.CONFLICT, "현재 상태에서는 처리할 수 없는 증빙입니다."),
+    DOCUMENT_VALIDATION_FAILED(HttpStatus.UNPROCESSABLE_ENTITY, "검증 오류가 남아 있어 승인할 수 없습니다. 필드를 수정하세요."),
+    DOCUMENT_ALREADY_LINKED(HttpStatus.CONFLICT, "이미 전표가 연결된 증빙입니다."),
+    STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "파일 저장소에 연결할 수 없습니다. 잠시 후 다시 시도하세요."),
+    INTERNAL_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "내부 API 토큰이 올바르지 않습니다."),
+
+    RECON_ALREADY_MATCHED(HttpStatus.CONFLICT, "이미 대사가 완료된 은행 거래 또는 전표입니다."),
+    RECON_ENTRY_NOT_ELIGIBLE(HttpStatus.UNPROCESSABLE_ENTITY, "이 은행 거래와 매칭할 수 없는 전표입니다."),
+    RECON_AMOUNT_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY, "은행 거래 금액과 전표의 은행 계정 금액이 일치하지 않습니다."),
+    RECON_MATCH_STATE_INVALID(HttpStatus.CONFLICT, "현재 상태에서는 처리할 수 없는 매칭입니다."),
 
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다."),
     DATA_INTEGRITY_VIOLATION(HttpStatus.CONFLICT, "데이터 무결성 제약을 위반했습니다."),

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useApi } from "@/lib/api";
 import { monthRange, todayKst } from "@/lib/dates";
-import { DIRECTION_LABEL, type AuditLog, type JournalEntrySummary, type PageResponse, type Transaction } from "@/lib/types";
+import { DIRECTION_LABEL, type AuditLog, type JournalEntrySummary, type PageResponse, type DocumentSummary, type ReconSummary, type Transaction } from "@/lib/types";
 import { useCompany } from "@/components/company-context";
 import { Card, Empty, Money, PageHeader, StatusBadge, formatDateTime, td, th } from "@/components/ui";
 import { actionLabel } from "../audit-logs/labels";
@@ -35,6 +35,9 @@ export default function DashboardPage() {
   const recentTx = useApi<PageResponse<Transaction>>(`${base}/transactions`, { size: 6 });
   // VIEWER는 Audit Log 조회 권한이 없다.
   const audit = useApi<PageResponse<AuditLog>>(company.role === "VIEWER" ? null : `${base}/audit-logs`, { size: 6 });
+  const recon = useApi<ReconSummary>(`${base}/reconciliation/summary`);
+  const docs = useApi<DocumentSummary>(`${base}/documents/summary`);
+  const rate = (v: number | null | undefined) => (v === null || v === undefined ? undefined : `${v.toFixed(1)}%`);
 
   return (
     <>
@@ -44,9 +47,14 @@ export default function DashboardPage() {
         <Stat label="이번 달 거래" value={monthTx.data?.totalElements} sub="취소 제외" href={link("transactions")} />
         <Stat label="이번 달 전표" value={monthJe.data?.totalElements} sub="취소 제외" href={link("journal-entries")} />
         <Stat label="미승인 전표" value={pendingJe.data?.totalElements} sub="승인 Workflow는 이후 Phase" href={link("journal-entries")} />
-        <Stat label="처리되지 않은 증빙" pending="Phase 3 · Document AI" />
-        <Stat label="자동대사 성공률" pending="Phase 2 · Bank Reconciliation" />
-        <Stat label="미매칭 거래" pending="Phase 2 · Bank Reconciliation" />
+        <Stat
+          label="처리되지 않은 증빙"
+          value={docs.data?.unprocessed}
+          sub={docs.data ? `확인 필요 ${docs.data.byStatus.REVIEW_REQUIRED} · 실패 ${docs.data.byStatus.FAILED} · 처리 중 ${docs.data.byStatus.PENDING}` : undefined}
+          href={link("documents")}
+        />
+        <Stat label="자동대사 성공률" value={recon.data ? (rate(recon.data.autoSuccessRate) ?? "–") : undefined} sub={recon.data ? `승인 ${recon.data.autoConfirmed} · 거절 ${recon.data.autoRejected}` : undefined} href={link("reconciliation")} />
+        <Stat label="미매칭 은행 거래" value={recon.data?.unmatched} sub={recon.data ? `검토 대기 ${recon.data.suggested} · 대사율 ${rate(recon.data.matchRate) ?? "–"}` : undefined} href={link("reconciliation")} />
         <Stat label="이상거래 / 고위험" pending="Phase 4 · Anomaly Detection" />
         <Stat label="월마감 진행률" pending="Phase 6 · Closing Copilot" />
       </div>

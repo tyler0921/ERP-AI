@@ -1,0 +1,6 @@
+# 테스트 전용. 추출/분류 로직은 Paddle 없이 테스트할 수 있다.
+fastapi==0.141.1
+httpx==0.28.1
+python-multipart==0.0.32
+pillow==12.3.0
+pytest==8.4.2

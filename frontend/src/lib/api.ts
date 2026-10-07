@@ -31,13 +31,16 @@ export function withQuery(path: string, query?: Query): string {
   return qs ? `${path}?${qs}` : path;
 }
 
+/** body가 FormData(파일 업로드)면 그대로 보내고, 브라우저가 multipart boundary를 붙이게 한다. */
 export async function api<T>(path: string, init?: { method?: string; body?: unknown; query?: Query }): Promise<T> {
+  const body = init?.body;
+  const isForm = typeof FormData !== "undefined" && body instanceof FormData;
   let res: Response;
   try {
     res = await fetch(withQuery(`/api/backend${path}`, init?.query), {
       method: init?.method ?? "GET",
-      headers: init?.body !== undefined ? { "Content-Type": "application/json" } : undefined,
-      body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
+      headers: body !== undefined && !isForm ? { "Content-Type": "application/json" } : undefined,
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
       cache: "no-store",
     });
   } catch {

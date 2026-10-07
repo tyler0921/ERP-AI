@@ -28,3 +28,21 @@
 - 물리 삭제 대신 `VOID` + 사유. 스키마는 Flyway만 관리 (`ddl-auto: none`).
 - 쓰기 API는 같은 트랜잭션에서 `AuditService`로 before/after를 기록한다.
 - 오류는 `ApiException(ErrorCode)` → `{ code, message, details[], timestamp }`.
+- 판단 로직(검증, Match Score 등)은 Spring/DB 의존성 없는 순수 클래스로 분리해 단위 테스트한다 (`JournalEntryValidator`, `BankCsvParser`, `MatchScorer`).
+- 백엔드 테스트는 경로의 한글·공백 때문에 ASCII 드라이브로 매핑해 실행한다: `subst L: "D:\PC_1M\project\회계 AI"` 후 `L:\backend`에서 `gradlew.bat test` (JDK 21: `C:\Program Files\Eclipse Adoptium\jdk-21*`).
+
+## Frontend 컨벤션 (기존 코드 기준)
+
+- Next.js 16 (App Router, Cache Components 켜짐). API가 학습 데이터와 다를 수 있으니 `frontend/node_modules/next/dist/docs/`를 먼저 확인한다. `middleware`는 `proxy.ts`로 바뀌었다.
+- 브라우저는 `/api/backend/**`(BFF)만 호출한다. 백엔드 URL·JWT를 클라이언트 코드에 두지 않는다. 호출은 `lib/api.ts`의 `api()` / `useApi()`.
+- `useParams`/`useSearchParams`를 쓰는 클라이언트 컴포넌트는 `<Suspense>` 안에 둔다 (없으면 빌드 실패).
+- 회사 화면은 `useCompany()`로 `base`(`/companies/{id}`)와 권한(`canWrite`, `isAdmin`)을 얻는다.
+- 금액은 문자열로 받고, 계산은 `lib/money.ts`(BigInt cents), 표시는 `<Money>`.
+- 디자인 토큰은 `globals.css`(`paper`, `ink`, `accent`, `danger` …). 공통 UI는 `components/ui.tsx`.
+
+## AI 서비스 컨벤션 (ai-service)
+
+- 추출·분류는 규칙 기반 순수 함수로 두고 `OcrEngine` 인터페이스 뒤의 OCR과 분리한다. 단위 테스트는 Paddle 없이 `tests/helpers.lines_of`로 OCR 줄을 만들어 쓴다.
+- 추출기는 값을 계산으로 만들어내지 않는다. 못 찾으면 `MISSING`(confidence 0). 금액은 문자열("1250000.00")로 다룬다.
+- PaddleOCR이 토큰 사이 공백을 자주 빼먹는다(`합계1,253,000원`). 정규식은 공백에 의존하지 않게 쓴다.
+- 의존성은 `requirements.txt`에 정확한 버전으로 고정한다. 실제 OCR 테스트는 컨테이너 안에서 실행한다.

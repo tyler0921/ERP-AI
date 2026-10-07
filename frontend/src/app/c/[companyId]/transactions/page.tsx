@@ -66,7 +66,7 @@ export default function TransactionsPage() {
       />
 
       <Card>
-        <form onSubmit={onFilter} className="grid grid-cols-2 gap-2 border-b border-line p-3 md:grid-cols-[repeat(4,minmax(0,1fr))_2fr_auto]">
+        <form onSubmit={onFilter} className="grid grid-cols-2 gap-2 border-b border-line p-3 lg:grid-cols-[repeat(4,minmax(0,1fr))_2fr_auto]">
           <Input name="from" type="date" aria-label="시작일" />
           <Input name="to" type="date" aria-label="종료일" />
           <Select name="direction" aria-label="입출금">

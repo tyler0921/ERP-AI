@@ -14,6 +14,7 @@ import com.ledgerguard.journal.JournalDtos.JournalEntrySummary;
 import com.ledgerguard.journal.JournalDtos.LineRequest;
 import com.ledgerguard.journal.JournalDtos.LineResponse;
 import com.ledgerguard.journal.JournalDtos.VoidRequest;
+import com.ledgerguard.reconciliation.ReconciliationMatchItemRepository;
 import com.ledgerguard.transaction.Transaction;
 import com.ledgerguard.transaction.TransactionRepository;
 import com.ledgerguard.transaction.TxStatus;
@@ -48,16 +49,19 @@ public class JournalEntryService {
     private final CompanyAccessService access;
     private final AuditService audit;
     private final JournalEntryValidator validator;
+    private final ReconciliationMatchItemRepository reconciliationItems;
 
     public JournalEntryService(JournalEntryRepository entries, AccountRepository accounts,
                                TransactionRepository transactions, CompanyAccessService access,
-                               AuditService audit, JournalEntryValidator validator) {
+                               AuditService audit, JournalEntryValidator validator,
+                               ReconciliationMatchItemRepository reconciliationItems) {
         this.entries = entries;
         this.accounts = accounts;
         this.transactions = transactions;
         this.access = access;
         this.audit = audit;
         this.validator = validator;
+        this.reconciliationItems = reconciliationItems;
     }
 
     @Transactional
@@ -102,6 +106,7 @@ public class JournalEntryService {
         if (entry.getStatus() == EntryStatus.VOID) {
             throw new ApiException(ErrorCode.JOURNAL_ALREADY_VOID);
         }
+        requireNotReconciled(id);
         Map<Long, Account> newAccounts = validate(companyId, req);
         JournalEntryResponse before = toResponse(entry, loadAccounts(companyId, accountIds(entry)));
 
@@ -126,6 +131,7 @@ public class JournalEntryService {
         if (entry.getStatus() == EntryStatus.VOID) {
             throw new ApiException(ErrorCode.JOURNAL_ALREADY_VOID);
         }
+        requireNotReconciled(id);
         Map<Long, Account> accountById = loadAccounts(companyId, accountIds(entry));
         JournalEntryResponse before = toResponse(entry, accountById);
 
@@ -137,6 +143,13 @@ public class JournalEntryService {
         JournalEntryResponse after = toResponse(entry, accountById);
         audit.record(companyId, userId, AuditActions.JE_VOID, AuditActions.TARGET_JOURNAL_ENTRY, id, before, after);
         return after;
+    }
+
+    /** 은행 대사가 확정된 전표는 은행 금액의 근거이므로 수정·취소할 수 없다. 매칭을 먼저 취소해야 한다. */
+    private void requireNotReconciled(Long entryId) {
+        if (reconciliationItems.existsByJournalEntryIdAndConfirmedTrue(entryId)) {
+            throw new ApiException(ErrorCode.JOURNAL_RECONCILED);
+        }
     }
 
     // ---------------------------------------------------------------- validation

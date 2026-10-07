@@ -13,4 +13,8 @@ public interface AccountRepository extends JpaRepository<Account, Long>, JpaSpec
     List<Account> findAllByIdInAndCompanyId(Collection<Long> ids, Long companyId);
 
     boolean existsByCompanyIdAndCode(Long companyId, String code);
+
+    Optional<Account> findByCompanyIdAndCode(Long companyId, String code);
+
+    Optional<Account> findFirstByCompanyIdAndNameAndActiveTrue(Long companyId, String name);
 }

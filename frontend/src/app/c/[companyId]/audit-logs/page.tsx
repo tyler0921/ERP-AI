@@ -49,7 +49,7 @@ export default function AuditLogsPage() {
         <ErrorBanner error="Audit Log는 관리자와 회계담당자만 조회할 수 있습니다." />
       ) : (
         <Card>
-          <form onSubmit={onFilter} className="grid grid-cols-2 gap-2 border-b border-line p-3 md:grid-cols-[1.4fr_1fr_100px_1fr_1fr_auto]">
+          <form onSubmit={onFilter} className="grid grid-cols-2 gap-2 border-b border-line p-3 lg:grid-cols-3 xl:grid-cols-[1.4fr_1fr_100px_1fr_1fr_auto]">
             <Select name="action" aria-label="작업">
               <option value="">작업 전체</option>
               {Object.entries(ACTION_LABEL).map(([k, v]) => (
@@ -99,9 +99,9 @@ export default function AuditLogsPage() {
                       <Fragment key={a.id}>
                         <tr onClick={() => setOpen(open === a.id ? null : a.id)} className="cursor-pointer hover:bg-paper">
                           <td className={`${td} whitespace-nowrap text-ink-soft`}>{formatDateTime(a.createdAt)}</td>
-                          <td className={td}>{actorName(a.actorId)}</td>
-                          <td className={td}>{actionLabel(a.action)}</td>
-                          <td className={td}>
+                          <td className={`${td} whitespace-nowrap`}>{actorName(a.actorId)}</td>
+                          <td className={`${td} whitespace-nowrap`}>{actionLabel(a.action)}</td>
+                          <td className={`${td} whitespace-nowrap`}>
                             {a.targetType ? (TARGET_LABEL[a.targetType] ?? a.targetType) : "-"}
                             {a.targetId != null && <span className="text-ink-soft"> #{a.targetId}</span>}
                           </td>
@@ -117,7 +117,7 @@ export default function AuditLogsPage() {
                                   <thead className="text-ink-soft">
                                     <tr>
                                       <th className="w-40 py-1 text-left font-medium">항목</th>
-                                      <th className="py-1 text-left font-medium">Before</th>
+                                      <th className="w-[45%] py-1 pr-2 text-left font-medium">Before</th>
                                       <th className="py-1 text-left font-medium">After</th>
                                     </tr>
                                   </thead>

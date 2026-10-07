@@ -57,6 +57,12 @@ public class GlobalExceptionHandler {
         return validationFailed(List.of(new ApiError.Detail("request", "요청 형식 또는 필터/정렬 조건이 올바르지 않습니다.")));
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleUploadTooLarge(Exception e) {
+        return ResponseEntity.status(ErrorCode.IMPORT_FILE_TOO_LARGE.status())
+                .body(ApiError.of(ErrorCode.IMPORT_FILE_TOO_LARGE));
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleIntegrity(DataIntegrityViolationException e) {
         log.warn("Data integrity violation: {}", e.getMostSpecificCause().getMessage());

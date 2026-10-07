@@ -28,10 +28,33 @@ public final class AuditActions {
     public static final String JE_UPDATE = "JE_UPDATE";
     public static final String JE_VOID = "JE_VOID";
 
+    public static final String BANK_ACCOUNT_CREATE = "BANK_ACCOUNT_CREATE";
+    public static final String BANK_ACCOUNT_UPDATE = "BANK_ACCOUNT_UPDATE";
+    public static final String BANK_IMPORT = "BANK_IMPORT";
+
+    public static final String RECON_RUN = "RECON_RUN";
+    public static final String RECON_CONFIRM = "RECON_CONFIRM";
+    public static final String RECON_REJECT = "RECON_REJECT";
+    public static final String RECON_MANUAL_MATCH = "RECON_MANUAL_MATCH";
+    public static final String RECON_CANCEL = "RECON_CANCEL";
+
+    public static final String DOC_UPLOAD = "DOC_UPLOAD";
+    public static final String DOC_AI_RESULT = "DOC_AI_RESULT";
+    public static final String DOC_AI_FAILED = "DOC_AI_FAILED";
+    public static final String DOC_UPDATE = "DOC_UPDATE";
+    public static final String DOC_APPROVE = "DOC_APPROVE";
+    public static final String DOC_REJECT = "DOC_REJECT";
+    public static final String DOC_RETRY = "DOC_RETRY";
+    public static final String DOC_JOURNAL_LINK = "DOC_JOURNAL_LINK";
+
     public static final String TARGET_USER = "USER";
     public static final String TARGET_COMPANY = "COMPANY";
     public static final String TARGET_MEMBER = "MEMBER";
     public static final String TARGET_ACCOUNT = "ACCOUNT";
     public static final String TARGET_TRANSACTION = "TRANSACTION";
     public static final String TARGET_JOURNAL_ENTRY = "JOURNAL_ENTRY";
+    public static final String TARGET_BANK_ACCOUNT = "BANK_ACCOUNT";
+    public static final String TARGET_BANK_IMPORT = "BANK_IMPORT";
+    public static final String TARGET_RECON_MATCH = "RECON_MATCH";
+    public static final String TARGET_DOCUMENT = "DOCUMENT";
 }

@@ -1,0 +1,12 @@
+# 런타임 의존성 (버전 고정)
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+python-multipart==0.0.32
+httpx==0.28.1
+redis==8.1.0
+pillow==12.3.0
+pypdfium2==5.13.0
+numpy<3
+# OCR (CPU)
+paddlepaddle==3.3.1
+paddleocr==3.7.0

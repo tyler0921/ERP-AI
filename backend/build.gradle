@@ -26,16 +26,23 @@ ext {
     jjwtVersion = '0.12.6'
 }
 
+// Boot 3.3.5 기본값(1.20.x)은 Docker Engine 29+가 거부하는 구버전 API로 접속한다. Docker 29를 지원하는 버전으로 올린다.
+ext['testcontainers.version'] = '1.21.4'
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    // Valkey(Redis 호환) — AI 작업 큐
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
+
+    implementation 'org.apache.commons:commons-csv:1.12.0'
 
     implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
     runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"

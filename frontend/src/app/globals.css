@@ -43,12 +43,14 @@ body {
   font-family: var(--font-sans);
 }
 
-/* 금액은 고정폭 숫자로 정렬 */
-.num {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  white-space: nowrap;
+/* 금액은 고정폭 숫자로 정렬. components 레이어에 두어 text-left 같은 유틸리티로 덮어쓸 수 있게 한다. */
+@layer components {
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
 }
 
 dialog::backdrop {

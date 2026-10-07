@@ -16,6 +16,22 @@ export const ACTION_LABEL: Record<string, string> = {
   JE_CREATE: "전표 작성",
   JE_UPDATE: "전표 수정",
   JE_VOID: "전표 취소",
+  BANK_ACCOUNT_CREATE: "은행 계좌 등록",
+  BANK_ACCOUNT_UPDATE: "은행 계좌 수정",
+  BANK_IMPORT: "은행 거래내역 업로드",
+  RECON_RUN: "자동 대사 실행",
+  RECON_CONFIRM: "대사 제안 승인",
+  RECON_REJECT: "대사 제안 거절",
+  RECON_MANUAL_MATCH: "수동 대사 매칭",
+  RECON_CANCEL: "대사 매칭 취소",
+  DOC_UPLOAD: "증빙 업로드",
+  DOC_AI_RESULT: "AI 추출 결과",
+  DOC_AI_FAILED: "AI 처리 실패",
+  DOC_UPDATE: "증빙 필드 수정",
+  DOC_APPROVE: "증빙 승인",
+  DOC_REJECT: "증빙 거절",
+  DOC_RETRY: "AI 재처리",
+  DOC_JOURNAL_LINK: "증빙 전표 생성",
 };
 
 export const TARGET_LABEL: Record<string, string> = {
@@ -25,6 +41,10 @@ export const TARGET_LABEL: Record<string, string> = {
   ACCOUNT: "계정과목",
   TRANSACTION: "거래",
   JOURNAL_ENTRY: "전표",
+  BANK_ACCOUNT: "은행 계좌",
+  BANK_IMPORT: "업로드",
+  RECON_MATCH: "대사 매칭",
+  DOCUMENT: "증빙",
 };
 
 export function actionLabel(action: string): string {

@@ -42,7 +42,7 @@ export default function JournalEntriesPage() {
         }
       />
       <Card>
-        <form onSubmit={onFilter} className="grid grid-cols-2 gap-2 border-b border-line p-3 md:grid-cols-[1fr_1fr_1fr_2fr_auto]">
+        <form onSubmit={onFilter} className="grid grid-cols-2 gap-2 border-b border-line p-3 lg:grid-cols-[1fr_1fr_1fr_2fr_auto]">
           <Input name="from" type="date" aria-label="시작일" />
           <Input name="to" type="date" aria-label="종료일" />
           <Select name="status" aria-label="상태">

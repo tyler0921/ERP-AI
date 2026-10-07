@@ -16,3 +16,10 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# test artifacts
+.playwright-mcp/
+
+# python
+__pycache__/
+.pytest_cache/

@@ -120,6 +120,229 @@ export interface AuditLog {
   createdAt: string;
 }
 
+// ------------------------------------------------------------ Phase 2: 은행 대사
+
+export type BankTxStatus = "UNMATCHED" | "SUGGESTED" | "MATCHED";
+export type MatchStatus = "SUGGESTED" | "CONFIRMED" | "REJECTED" | "CANCELLED";
+export type MatchSource = "AUTO" | "MANUAL";
+export type MatchLevel = "HIGH" | "REVIEW" | "LOW";
+
+export interface BankAccount {
+  id: number;
+  name: string;
+  bankName: string | null;
+  accountNoMasked: string | null;
+  glAccountId: number;
+  glAccountCode: string | null;
+  glAccountName: string | null;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface BankImport {
+  id: number;
+  bankAccountId: number;
+  fileName: string;
+  encoding: string;
+  totalRows: number;
+  importedRows: number;
+  duplicateRows: number;
+  createdBy: number;
+  createdAt: string;
+}
+
+export interface MatchSummary {
+  matchId: number;
+  status: MatchStatus;
+  source: MatchSource;
+  score: number;
+  level: MatchLevel;
+  journalEntryIds: number[];
+}
+
+export interface BankTransaction {
+  id: number;
+  bankAccountId: number;
+  txDate: string;
+  txTime: string | null;
+  direction: Direction;
+  amount: Money;
+  balance: Money | null;
+  counterparty: string | null;
+  memo: string | null;
+  status: BankTxStatus;
+  match: MatchSummary | null;
+}
+
+/** 서버 MatchScorer가 저장하는 점수 근거 */
+export interface ScoreDetail {
+  total: number;
+  level: MatchLevel;
+  amount: number;
+  date: number;
+  counterparty: number;
+  memo: number;
+  pattern: number;
+  bankAmount: string;
+  entryAmount: string;
+  dayDiff: number;
+  counterpartySimilarity: number;
+  memoSimilarity: number;
+  patternCount: number;
+  reasons: string[];
+}
+
+export interface ReconMatch {
+  id: number;
+  matchType: string;
+  status: MatchStatus;
+  source: MatchSource;
+  score: number;
+  level: MatchLevel;
+  scoreDetail: ScoreDetail;
+  bankTransactionIds: number[];
+  journalEntryIds: number[];
+  createdBy: number;
+  createdAt: string;
+  reviewedBy: number | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+}
+
+export interface Candidate {
+  journalEntryId: number;
+  entryDate: string;
+  description: string | null;
+  counterparty: string | null;
+  bankAmount: Money;
+  score: number;
+  level: MatchLevel;
+  scoreDetail: ScoreDetail;
+  suggestedElsewhere: boolean;
+  rejected: boolean;
+}
+
+export interface RunResult {
+  bankAccountId: number;
+  processed: number;
+  suggestedHigh: number;
+  suggestedReview: number;
+  unmatched: number;
+}
+
+export interface ReconSummary {
+  bankAccountId: number | null;
+  total: number;
+  matched: number;
+  suggested: number;
+  unmatched: number;
+  matchRate: number | null;
+  autoConfirmed: number;
+  autoRejected: number;
+  autoSuccessRate: number | null;
+}
+
+// ------------------------------------------------------------ Phase 3: 증빙(Document AI)
+
+export type DocType = "RECEIPT" | "TAX_INVOICE";
+export type DocStatus = "PENDING" | "AI_REVIEWED" | "REVIEW_REQUIRED" | "APPROVED" | "REJECTED" | "FAILED";
+
+export interface AiField {
+  value: string | null;
+  confidence: number;
+  source: string;
+}
+
+export interface ValidationIssue {
+  code: string;
+  severity: "ERROR" | "WARNING";
+  field: string | null;
+  message: string;
+}
+
+export interface AccountCandidate {
+  accountId: number;
+  code: string;
+  name: string;
+  confidence: number;
+  source: "HISTORY" | "RULE";
+  reasons: string[];
+}
+
+export interface DocumentFields {
+  vendorName: string | null;
+  vendorBusinessNo: string | null;
+  buyerName: string | null;
+  buyerBusinessNo: string | null;
+  issueDate: string | null;
+  supplyAmount: Money | null;
+  vatAmount: Money | null;
+  totalAmount: Money | null;
+  paymentMethod: string | null;
+  itemsSummary: string | null;
+}
+
+export interface DocumentDetail extends DocumentFields {
+  id: number;
+  docType: DocType;
+  status: DocStatus;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  aiConfidence: number | null;
+  aiFields: Partial<Record<keyof DocumentFields, AiField>>;
+  ocrLines: { text: string; score: number; page: number }[];
+  ocrInfo: { engine?: string; model?: string; durationMs?: number; pages?: number };
+  validation: ValidationIssue[];
+  recommendation: AccountCandidate[];
+  recommendedAccountId: number | null;
+  accountId: number | null;
+  journalEntryId: number | null;
+  reviewedBy: number | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  attempt: number;
+  queuedAt: string | null;
+  processedAt: string | null;
+  errorMessage: string | null;
+  uploadedBy: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentListItem {
+  id: number;
+  docType: DocType;
+  status: DocStatus;
+  fileName: string;
+  vendorName: string | null;
+  issueDate: string | null;
+  totalAmount: Money | null;
+  aiConfidence: number | null;
+  errorCount: number;
+  warningCount: number;
+  accountId: number | null;
+  journalEntryId: number | null;
+  createdAt: string;
+}
+
+export interface DocumentSummary {
+  byStatus: Record<DocStatus, number>;
+  unprocessed: number;
+  total: number;
+}
+
+export const DOC_TYPE_LABEL: Record<DocType, string> = { RECEIPT: "영수증", TAX_INVOICE: "세금계산서" };
+
+export const DOC_STATUS_LABEL: Record<DocStatus, string> = {
+  PENDING: "AI 처리 중",
+  AI_REVIEWED: "AI 검토 완료",
+  REVIEW_REQUIRED: "확인 필요",
+  APPROVED: "승인",
+  REJECTED: "거절",
+  FAILED: "처리 실패",
+};
+
 export const ROLE_LABEL: Record<Role, string> = {
   ADMIN: "관리자",
   ACCOUNTANT: "회계담당자",

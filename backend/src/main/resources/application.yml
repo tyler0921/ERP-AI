@@ -19,7 +19,15 @@ spring:
           time_zone: UTC
   flyway:
     enabled: true
+  servlet:
+    multipart:
+      # 증빙 파일 최대 10MB (CSV는 BankController에서 2MB로 따로 제한)
+      max-file-size: 10MB
+      max-request-size: 11MB
   data:
+    redis:
+      url: ${VALKEY_URL:redis://localhost:6379}
+      timeout: 3s
     web:
       pageable:
         default-page-size: 20
@@ -27,6 +35,15 @@ spring:
 
 app:
   zone: Asia/Seoul
+  # AI 서비스 콜백용 공유 토큰. 운영/공유 환경에서는 반드시 INTERNAL_API_TOKEN으로 교체할 것.
+  internal-token: ${INTERNAL_API_TOKEN:dev-internal-token-change-me}
+  storage:
+    filer-url: ${SEAWEEDFS_FILER_URL:http://localhost:8888}
+    root: ledgerguard
+  queue:
+    ocr-key: ledgerguard:ocr:jobs
+  documents:
+    ocr-timeout-minutes: ${OCR_TIMEOUT_MINUTES:15}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
   jwt:

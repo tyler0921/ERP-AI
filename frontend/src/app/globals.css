@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* LedgerGuard 디자인 토큰 — 장부(ledger) 느낌의 차분한 종이색 + 잉크색, 강조는 짙은 녹색 */
+:root {
+  --paper: #f6f5f1;
+  --surface: #ffffff;
+  --ink: #1b1f24;
+  --ink-soft: #5b636e;
+  --line: #e2dfd7;
+  --line-strong: #cbc7bc;
+  --accent: #1f5f4a;
+  --accent-soft: #e4efe9;
+  --danger: #a3321f;
+  --danger-soft: #f7e6e2;
+  --warn: #8a5a00;
+  --warn-soft: #f8eed8;
+  --sidebar: #15191e;
+  --sidebar-ink: #c8ccd2;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-ink: var(--sidebar-ink);
+  --font-sans: var(--font-plex-kr), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+/* 금액은 고정폭 숫자로 정렬 */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+dialog::backdrop {
+  background: rgb(21 25 30 / 0.45);
+}

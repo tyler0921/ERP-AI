@@ -1,0 +1,18 @@
+# build
+build/
+.gradle/
+out/
+node_modules/
+.next/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# env / secrets
+.env
+
+# OS
+.DS_Store
+Thumbs.db

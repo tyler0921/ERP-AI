@@ -54,6 +54,7 @@ public enum ErrorCode {
 
     ANOMALY_PERIOD_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "분석 기간이 올바르지 않습니다. (시작일 ≤ 종료일, 최대 366일)"),
     ANOMALY_STATE_INVALID(HttpStatus.CONFLICT, "현재 상태에서는 처리할 수 없는 이상거래 결과입니다."),
+    EXPLANATION_STATE_INVALID(HttpStatus.CONFLICT, "현재 상태에서는 설명을 처리할 수 없습니다."),
 
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다."),
     DATA_INTEGRITY_VIOLATION(HttpStatus.CONFLICT, "데이터 무결성 제약을 위반했습니다."),

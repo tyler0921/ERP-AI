@@ -51,6 +51,8 @@ public final class AuditActions {
     public static final String ANOMALY_REVIEW = "ANOMALY_REVIEW";
     public static final String ANOMALY_REOPEN = "ANOMALY_REOPEN";
     public static final String ANOMALY_SETTINGS_UPDATE = "ANOMALY_SETTINGS_UPDATE";
+    public static final String ANOMALY_EXPLANATION_EDIT = "ANOMALY_EXPLANATION_EDIT";
+    public static final String ANOMALY_EXPLANATION_REGENERATE = "ANOMALY_EXPLANATION_REGENERATE";
 
     public static final String TARGET_USER = "USER";
     public static final String TARGET_COMPANY = "COMPANY";

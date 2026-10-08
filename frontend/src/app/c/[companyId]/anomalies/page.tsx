@@ -20,6 +20,7 @@ import {
 } from "@/lib/types";
 import { useCompany } from "@/components/company-context";
 import { Button, Card, Empty, ErrorBanner, Field, Input, Loading, Money, PageHeader, Pagination, Select, formatDateTime, td, th } from "@/components/ui";
+import { ExplanationPanel, usePollWhilePending } from "./explanation";
 import { AnomalyStatusBadge, MlStatusBadge, RiskBadge, RiskScore } from "./risk";
 
 const STATUS_TABS: ("" | AnomalyStatus)[] = ["OPEN", "CONFIRMED", "DISMISSED", "CLEARED", ""];
@@ -33,6 +34,7 @@ export default function AnomaliesPage() {
   const [page, setPage] = useState(0);
   const list = useApi<PageResponse<AnomalyListItem>>(`${base}/anomalies`, { status, level, sourceType, page, size: 20 });
   const summary = useApi<AnomalySummary>(`${base}/anomalies/summary`);
+  usePollWhilePending(summary.data?.lastScan?.explanation?.status, summary.reload);
 
   function filterLevel(next: "" | RiskLevel) {
     setLevel(next);
@@ -58,7 +60,7 @@ export default function AnomaliesPage() {
         />
       )}
 
-      {summary.data?.lastScan && <LastScan scan={summary.data.lastScan} />}
+      {summary.data?.lastScan && <LastScan scan={summary.data.lastScan} base={base} canWrite={canWrite} onChanged={summary.reload} />}
 
       {/* 미검토 결과의 위험 수준별 건수. 누르면 해당 수준만 본다 */}
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -248,7 +250,7 @@ function ScanPanel({ base, companyId, onDone }: { base: string; companyId: numbe
   );
 }
 
-function LastScan({ scan }: { scan: AnomalyScan }) {
+function LastScan({ scan, base, canWrite, onChanged }: { scan: AnomalyScan; base: string; canWrite: boolean; onChanged: () => void }) {
   // 분석한 거래가 있는 원천의 ML 사유만 보여준다 (거래가 0건인 원천의 "표본 부족"은 잡음)
   const ml = Object.entries(scan.mlInfo).filter(([source]) => (scan.summary.analyzedBySource?.[source as AnomalySource] ?? 0) > 0);
   return (
@@ -282,6 +284,16 @@ function LastScan({ scan }: { scan: AnomalyScan }) {
           )}
         </ul>
       )}
+      <div className="-mx-4 mt-2 border-t border-line">
+        <p className="px-4 pt-2 text-xs font-medium text-ink-soft">분석 요약 (로컬 LLM)</p>
+        <ExplanationPanel
+          explanation={scan.explanation}
+          canWrite={canWrite}
+          regeneratePath={`${base}/anomalies/scans/${scan.id}/summary/regenerate`}
+          onChanged={onChanged}
+          emptyText="요약이 없습니다."
+        />
+      </div>
     </div>
   );
 }

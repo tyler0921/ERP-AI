@@ -36,6 +36,8 @@ export const ACTION_LABEL: Record<string, string> = {
   ANOMALY_REVIEW: "이상거래 판정",
   ANOMALY_REOPEN: "이상거래 판정 취소",
   ANOMALY_SETTINGS_UPDATE: "탐지 기준 변경",
+  ANOMALY_EXPLANATION_EDIT: "AI 설명 수정",
+  ANOMALY_EXPLANATION_REGENERATE: "AI 설명 다시 생성",
 };
 
 export const TARGET_LABEL: Record<string, string> = {

@@ -1,12 +1,8 @@
 package com.ledgerguard.document;
 
-import com.ledgerguard.common.ApiException;
-import com.ledgerguard.common.ErrorCode;
 import com.ledgerguard.document.DocumentDtos.AiResultCallback;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import com.ledgerguard.security.InternalTokenVerifier;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,21 +21,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class InternalDocumentController {
 
     private final DocumentService service;
-    private final byte[] token;
+    private final InternalTokenVerifier tokenVerifier;
 
-    public InternalDocumentController(DocumentService service, @Value("${app.internal-token}") String token) {
+    public InternalDocumentController(DocumentService service, InternalTokenVerifier tokenVerifier) {
         this.service = service;
-        this.token = token.getBytes(StandardCharsets.UTF_8);
+        this.tokenVerifier = tokenVerifier;
     }
 
     @PostMapping("/{id}/ai-result")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public Map<String, String> aiResult(@RequestHeader(value = "X-Internal-Token", required = false) String header,
                                         @PathVariable Long id, @RequestBody AiResultCallback callback) {
-        // 길이에 따른 시간 차이로 토큰을 추측하지 못하게 상수 시간 비교
-        if (header == null || !MessageDigest.isEqual(token, header.getBytes(StandardCharsets.UTF_8))) {
-            throw new ApiException(ErrorCode.INTERNAL_TOKEN_INVALID);
-        }
+        tokenVerifier.verify(header);
         return Map.of("status", service.applyAiResult(id, callback) ? "applied" : "ignored");
     }
 }

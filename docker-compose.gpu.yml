@@ -1,0 +1,11 @@
+# NVIDIA GPU로 Ollama를 실행한다. (NVIDIA 드라이버 + Docker GPU 지원 필요)
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

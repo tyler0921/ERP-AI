@@ -362,6 +362,49 @@ export interface MlSourceInfo {
   message?: string;
 }
 
+// ------------------------------------------------------------ Phase 5: LLM 설명
+
+export type ExplanationStatus = "PENDING" | "GENERATED" | "FALLBACK" | "FAILED" | "EDITED";
+
+export interface ExplanationIssue {
+  code: string;
+  message: string;
+}
+
+/** LLM 설명. facts는 LLM에 준 입력 그대로 */
+export interface Explanation {
+  id: number;
+  status: ExplanationStatus;
+  text: string | null;
+  checkpoints: string[];
+  meta: {
+    provider?: string;
+    model?: string;
+    promptVersion?: string;
+    durationMs?: number;
+    validation?: ExplanationIssue[];
+    rejectedText?: string;
+    llmError?: string;
+    error?: string;
+    stale?: boolean;
+    editedFrom?: ExplanationStatus;
+  };
+  facts: Record<string, unknown>;
+  attempt: number;
+  requestedAt: string;
+  completedAt: string | null;
+  editedBy: number | null;
+  editedAt: string | null;
+}
+
+export const EXPLANATION_STATUS_LABEL: Record<ExplanationStatus, string> = {
+  PENDING: "생성 중",
+  GENERATED: "AI 설명",
+  FALLBACK: "규칙 요약(대체)",
+  FAILED: "생성 실패",
+  EDITED: "담당자 수정",
+};
+
 export interface AnomalyScan {
   id: number;
   periodFrom: string;
@@ -383,6 +426,7 @@ export interface AnomalyScan {
   durationMs: number;
   createdBy: number;
   createdAt: string;
+  explanation: Explanation | null;
 }
 
 export interface RuleHit {
@@ -459,6 +503,7 @@ export interface AnomalyDetail extends Omit<AnomalyListItem, "ruleCodes"> {
   reviewedBy: number | null;
   scanId: number;
   firstDetectedAt: string;
+  explanation: Explanation | null;
 }
 
 export interface AnomalySummary {

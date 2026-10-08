@@ -5,6 +5,7 @@ import com.ledgerguard.anomaly.AnomalyEnums.MlStatus;
 import com.ledgerguard.anomaly.AnomalyEnums.ResultStatus;
 import com.ledgerguard.anomaly.AnomalyEnums.RiskLevel;
 import com.ledgerguard.anomaly.AnomalyEnums.SourceType;
+import com.ledgerguard.explanation.ExplanationDtos.ExplanationView;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -65,12 +66,13 @@ public final class AnomalyDtos {
 
     public record ScanResponse(Long id, LocalDate periodFrom, LocalDate periodTo, int analyzedCount, int flaggedCount,
                                Map<String, Object> summary, MlStatus mlStatus, Map<String, Object> mlInfo,
-                               Map<String, Object> settings, long durationMs, Long createdBy, Instant createdAt) {
+                               Map<String, Object> settings, long durationMs, Long createdBy, Instant createdAt,
+                               /** 분석 요약 (LLM). 아직 없으면 null */ ExplanationView explanation) {
 
-        public static ScanResponse from(AnomalyScan s) {
+        public static ScanResponse from(AnomalyScan s, ExplanationView explanation) {
             return new ScanResponse(s.getId(), s.getPeriodFrom(), s.getPeriodTo(), s.getAnalyzedCount(),
                     s.getFlaggedCount(), s.getSummary(), s.getMlStatus(), s.getMlInfo(), s.getSettingsSnapshot(),
-                    s.getDurationMs(), s.getCreatedBy(), s.getCreatedAt());
+                    s.getDurationMs(), s.getCreatedBy(), s.getCreatedAt(), explanation);
         }
     }
 
@@ -97,14 +99,15 @@ public final class AnomalyDtos {
                                  List<Map<String, Object>> ruleHits, Map<String, Object> features,
                                  Map<String, Object> mlDetail, Map<String, Object> context, ResultStatus status,
                                  String reviewNote, Long reviewedBy, Instant reviewedAt, Long scanId,
-                                 Instant firstDetectedAt, Instant updatedAt) {
+                                 Instant firstDetectedAt, Instant updatedAt,
+                                 /** 탐지 이유 설명 (LLM). 아직 없으면 null */ ExplanationView explanation) {
 
-        public static ResultResponse from(AnomalyResult r) {
+        public static ResultResponse from(AnomalyResult r, ExplanationView explanation) {
             return new ResultResponse(r.getId(), r.getSourceType(), r.getSourceId(), r.getTxDate(), r.getTxTime(),
                     r.getCounterparty(), r.getAmount(), r.getRiskScore(), r.getRiskLevel(), r.getEffectiveLevel(),
                     r.getAdjustedLevel(), r.getRuleScore(), r.getMlScore(), r.getRuleHits(), r.getFeatures(),
                     r.getMlDetail(), r.getContext(), r.getStatus(), r.getReviewNote(), r.getReviewedBy(),
-                    r.getReviewedAt(), r.getScanId(), r.getFirstDetectedAt(), r.getUpdatedAt());
+                    r.getReviewedAt(), r.getScanId(), r.getFirstDetectedAt(), r.getUpdatedAt(), explanation);
         }
     }
 

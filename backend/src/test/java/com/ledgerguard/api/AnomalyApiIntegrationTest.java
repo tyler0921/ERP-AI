@@ -8,6 +8,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ledgerguard.anomaly.infra.AnomalyModelClient;
+import com.ledgerguard.explanation.ExplanationService;
+import com.ledgerguard.explanation.infra.LlmJobQueue;
+import java.time.Instant;
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -72,12 +75,32 @@ class AnomalyApiIntegrationTest {
         }
     }
 
+    /** LLM 작업을 붙잡아 두는 큐. 실제 LLM worker 대신 테스트가 내부 콜백 API를 호출한다. */
+    static class CapturingLlmQueue implements LlmJobQueue {
+        final List<LlmJob> jobs = new CopyOnWriteArrayList<>();
+        volatile boolean down;
+
+        @Override
+        public void enqueue(LlmJob job) {
+            if (down) {
+                throw new QueueException("down", new RuntimeException());
+            }
+            jobs.add(job);
+        }
+    }
+
     @TestConfiguration
     static class Infra {
         @Bean
         @Primary
         FakeModel fakeModel() {
             return new FakeModel();
+        }
+
+        @Bean
+        @Primary
+        CapturingLlmQueue capturingLlmQueue() {
+            return new CapturingLlmQueue();
         }
     }
 
@@ -89,6 +112,10 @@ class AnomalyApiIntegrationTest {
     JdbcTemplate jdbc;
     @Autowired
     FakeModel model;
+    @Autowired
+    CapturingLlmQueue llmQueue;
+    @Autowired
+    ExplanationService explanationService;
 
     private static final String SEPT_FROM = "2026-09-01";
     private static final String SEPT_TO = "2026-09-30";
@@ -548,5 +575,168 @@ class AnomalyApiIntegrationTest {
         jdbc.update("UPDATE anomaly_results SET adjusted_level = 'LOW' WHERE id = ?", resultId);
         assertThat(jdbc.queryForObject("SELECT effective_level FROM anomaly_results WHERE id = ?", String.class, resultId))
                 .isEqualTo("LOW");
+    }
+
+    // ------------------------------------------------------------------ Phase 5 LLM 설명
+
+    private static final String TOKEN = "dev-internal-token-change-me";
+
+    private JsonNode explanationCallback(long explanationId, String token, Object body, int expectedStatus) throws Exception {
+        MockHttpServletRequestBuilder builder = request(HttpMethod.POST, "/internal/v1/explanations/" + explanationId + "/result")
+                .contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsString(body));
+        if (token != null) {
+            builder.header("X-Internal-Token", token);
+        }
+        String content = mvc.perform(builder).andExpect(status().is(expectedStatus))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        return om.readTree(content);
+    }
+
+    private static Map<String, Object> llmResult(int attempt, String status, String text) {
+        return map("attempt", attempt, "success", true, "status", status, "text", text,
+                "checkpoints", List.of("분할 결제 여부 확인"),
+                "meta", map("provider", "ollama", "model", "qwen2.5:7b-instruct", "promptVersion", "anomaly-v1",
+                        "durationMs", 2100, "validation", List.of()));
+    }
+
+    private List<LlmJobQueue.LlmJob> jobsAfter(int index) {
+        return new ArrayList<>(llmQueue.jobs.subList(index, llmQueue.jobs.size()));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void LLM_설명_요청부터_수정_재생성까지() throws Exception {
+        Login admin = signupAndLogin();
+        String base = newCompany(admin);
+        bankSetup(admin, base);
+
+        // --- 분석 직후: OPEN 결과 5건(위험도 높은 순) + 분석 요약 1건의 LLM 작업이 커밋 후 큐에 들어간다
+        int before = llmQueue.jobs.size();
+        long scanId = scan(admin, base, SEPT_FROM, SEPT_TO, 200).get("id").asLong();
+        List<LlmJobQueue.LlmJob> jobs = jobsAfter(before);
+        assertThat(jobs).hasSize(6);
+        assertThat(jobs.subList(0, 5)).allSatisfy(j -> assertThat(j.targetType()).isEqualTo("ANOMALY_RESULT"));
+        assertThat(jobs.get(5).targetType()).isEqualTo("ANOMALY_SCAN");
+        Map<String, Object> facts = jobs.get(0).facts();
+        assertThat(((Map<String, Object>) facts.get("위험도")).get("위험도 점수")).isEqualTo(100);
+        // 금액은 화면과 같은 표시 형식으로 전달한다
+        assertThat(((Map<String, Object>) facts.get("거래")).get("출금액")).isIn("4,950,000원", "4,800,000원");
+        assertThat(jobs.get(5).facts().get("탐지 건수(40점 이상)")).isEqualTo(5);
+
+        Map<String, JsonNode> open = openByCounterpartyAndAmount(admin, base);
+        long nightId = open.get("심야주점:45000.00:2026-09-12").get("id").asLong();
+        long dupId = open.get("가상물산:1253000.00:2026-09-15").get("id").asLong();
+        JsonNode pending = call(HttpMethod.GET, base + "/anomalies/" + nightId, admin.token(), null, 200).get("explanation");
+        assertThat(pending.get("status").asText()).isEqualTo("PENDING");
+        assertThat(pending.get("facts").get("거래").get("거래일시").asText()).isEqualTo("2026-09-12 23:40");
+        long nightExplanationId = pending.get("id").asLong();
+
+        // --- 콜백: 토큰 확인, 다른 시도 번호는 무시, 한 번만 반영
+        explanationCallback(nightExplanationId, null, llmResult(1, "GENERATED", "설명"), 401);
+        assertThat(explanationCallback(nightExplanationId, TOKEN, llmResult(9, "GENERATED", "설명"), 202)
+                .get("status").asText()).isEqualTo("ignored");
+        String text = "심야주점에 대한 450,000원 출금은 토요일 23:40에 이루어졌고 증빙이 없어 확인이 필요합니다.";
+        assertThat(explanationCallback(nightExplanationId, TOKEN, llmResult(1, "GENERATED", text), 202)
+                .get("status").asText()).isEqualTo("applied");
+        assertThat(explanationCallback(nightExplanationId, TOKEN, llmResult(1, "GENERATED", "다른 설명"), 202)
+                .get("status").asText()).isEqualTo("ignored");
+        JsonNode generated = call(HttpMethod.GET, base + "/anomalies/" + nightId, admin.token(), null, 200).get("explanation");
+        assertThat(generated.get("status").asText()).isEqualTo("GENERATED");
+        assertThat(generated.get("text").asText()).isEqualTo(text);
+        assertThat(generated.get("checkpoints").get(0).asText()).isEqualTo("분할 결제 여부 확인");
+        assertThat(generated.get("meta").get("model").asText()).isEqualTo("qwen2.5:7b-instruct");
+        assertThat(generated.get("completedAt").isNull()).isFalse();
+
+        // 분석 요약은 템플릿(FALLBACK)으로 와도 반영된다
+        long scanExplanationId = jobs.get(5).explanationId();
+        explanationCallback(scanExplanationId, TOKEN, llmResult(1, "FALLBACK", "출금 12건을 분석해 5건을 탐지했습니다."), 202);
+        JsonNode lastScan = call(HttpMethod.GET, base + "/anomalies/summary", admin.token(), null, 200).get("lastScan");
+        assertThat(lastScan.get("id").asLong()).isEqualTo(scanId);
+        assertThat(lastScan.get("explanation").get("status").asText()).isEqualTo("FALLBACK");
+
+        // --- 근거가 같으면 재분석해도 다시 만들지 않는다 (새 분석의 요약만 요청)
+        before = llmQueue.jobs.size();
+        scan(admin, base, SEPT_FROM, SEPT_TO, 200);
+        assertThat(jobsAfter(before)).extracting(LlmJobQueue.LlmJob::targetType).containsExactly("ANOMALY_SCAN");
+
+        // --- 사람의 수정 (Audit)
+        JsonNode edited = call(HttpMethod.PUT, base + "/anomalies/" + nightId + "/explanation", admin.token(),
+                map("text", "  법인카드 심야 사용. 사용 목적 확인 필요.  ", "checkpoints", List.of("사용자 소명 받기")), 200)
+                .get("explanation");
+        assertThat(edited.get("status").asText()).isEqualTo("EDITED");
+        assertThat(edited.get("text").asText()).isEqualTo("법인카드 심야 사용. 사용 목적 확인 필요.");
+        assertThat(edited.get("editedBy").asLong()).isEqualTo(admin.userId());
+        assertThat(edited.get("meta").get("editedFrom").asText()).isEqualTo("GENERATED");
+        call(HttpMethod.PUT, base + "/anomalies/" + nightId + "/explanation", admin.token(), map("text", " "), 400);
+        JsonNode audit = call(HttpMethod.GET, base + "/audit-logs?size=10", admin.token(), null, 200).get("content");
+        JsonNode editLog = null;
+        for (JsonNode a : audit) {
+            if (a.get("action").asText().equals("ANOMALY_EXPLANATION_EDIT")) {
+                editLog = a;
+            }
+        }
+        assertThat(editLog).isNotNull();
+        assertThat(editLog.get("before").get("text").asText()).isEqualTo(text);
+        assertThat(editLog.get("after").get("status").asText()).isEqualTo("EDITED");
+
+        // --- 근거가 바뀌면: 수정한 설명은 그대로 두고 stale 표시, 나머지는 새로 요청
+        call(HttpMethod.PUT, base + "/anomaly-settings", admin.token(), map("approvalLimit", "1300000",
+                "nearLimitRatio", "0.90", "evidenceMinAmount", "30000", "newVendorMinAmount", "1000000",
+                "spikeMultiplier", "5", "nightStartHour", 21, "nightEndHour", 6, "mlEnabled", true), 200);
+        before = llmQueue.jobs.size();
+        scan(admin, base, SEPT_FROM, SEPT_TO, 200);
+        List<Long> requested = jobsAfter(before).stream().map(LlmJobQueue.LlmJob::explanationId).toList();
+        JsonNode stale = call(HttpMethod.GET, base + "/anomalies/" + nightId, admin.token(), null, 200).get("explanation");
+        assertThat(stale.get("status").asText()).isEqualTo("EDITED");
+        assertThat(stale.get("meta").get("stale").asBoolean()).isTrue();
+        assertThat(requested).doesNotContain(stale.get("id").asLong());
+        JsonNode dupExplanation = call(HttpMethod.GET, base + "/anomalies/" + dupId, admin.token(), null, 200).get("explanation");
+        assertThat(dupExplanation.get("status").asText()).isEqualTo("PENDING");
+        assertThat(dupExplanation.get("attempt").asInt()).isEqualTo(2);
+        assertThat(requested).contains(dupExplanation.get("id").asLong());
+
+        // --- 다시 생성: 수정한 설명도 바뀌고, 처리 중에는 다시 요청할 수 없다
+        JsonNode regenerated = call(HttpMethod.POST, base + "/anomalies/" + nightId + "/explanation/regenerate",
+                admin.token(), null, 200).get("explanation");
+        assertThat(regenerated.get("status").asText()).isEqualTo("PENDING");
+        assertThat(regenerated.get("attempt").asInt()).isEqualTo(2);
+        assertThat(regenerated.get("text").isNull()).isTrue();
+        call(HttpMethod.POST, base + "/anomalies/" + nightId + "/explanation/regenerate", admin.token(), null, 409);
+
+        // --- 시간 초과 → FAILED, 늦게 도착한 같은 시도의 결과는 반영
+        explanationService.failTimedOut(Instant.now().plusSeconds(1));
+        JsonNode failed = call(HttpMethod.GET, base + "/anomalies/" + nightId, admin.token(), null, 200).get("explanation");
+        assertThat(failed.get("status").asText()).isEqualTo("FAILED");
+        assertThat(failed.get("meta").get("error").asText()).contains("시간이 초과");
+        explanationCallback(nightExplanationId, TOKEN, llmResult(2, "GENERATED", text), 202);
+        assertThat(call(HttpMethod.GET, base + "/anomalies/" + nightId, admin.token(), null, 200)
+                .get("explanation").get("status").asText()).isEqualTo("GENERATED");
+
+        // --- 작업 큐 장애: 요청은 성공, 설명만 FAILED (다시 생성 가능)
+        llmQueue.down = true;
+        try {
+            call(HttpMethod.POST, base + "/anomalies/" + nightId + "/explanation/regenerate", admin.token(), null, 200);
+        } finally {
+            llmQueue.down = false;
+        }
+        JsonNode queueFailed = call(HttpMethod.GET, base + "/anomalies/" + nightId, admin.token(), null, 200).get("explanation");
+        assertThat(queueFailed.get("status").asText()).isEqualTo("FAILED");
+        assertThat(queueFailed.get("meta").get("error").asText()).contains("Valkey");
+
+        // --- 분석 요약 다시 생성 (저장된 근거를 그대로 사용)
+        JsonNode summaryRegen = call(HttpMethod.POST, base + "/anomalies/scans/" + scanId + "/summary/regenerate",
+                admin.token(), null, 200);
+        assertThat(summaryRegen.get("explanation").get("status").asText()).isEqualTo("PENDING");
+        assertThat(summaryRegen.get("explanation").get("attempt").asInt()).isEqualTo(2);
+
+        // --- 권한: VIEWER는 조회만, 다른 회사의 분석은 404
+        Login viewer = signupAndLogin();
+        call(HttpMethod.POST, base + "/members", admin.token(), map("email", viewer.email(), "role", "VIEWER"), 201);
+        call(HttpMethod.GET, base + "/anomalies/" + nightId, viewer.token(), null, 200);
+        call(HttpMethod.PUT, base + "/anomalies/" + nightId + "/explanation", viewer.token(), map("text", "x"), 403);
+        call(HttpMethod.POST, base + "/anomalies/" + nightId + "/explanation/regenerate", viewer.token(), null, 403);
+        Login outsider = signupAndLogin();
+        String otherBase = newCompany(outsider);
+        call(HttpMethod.POST, otherBase + "/anomalies/scans/" + scanId + "/summary/regenerate", outsider.token(), null, 404);
     }
 }

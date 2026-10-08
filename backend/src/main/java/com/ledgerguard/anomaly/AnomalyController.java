@@ -1,6 +1,7 @@
 package com.ledgerguard.anomaly;
 
 import com.ledgerguard.anomaly.AnomalyDtos.ReopenRequest;
+import com.ledgerguard.explanation.ExplanationDtos.EditRequest;
 import com.ledgerguard.anomaly.AnomalyDtos.ResultListItem;
 import com.ledgerguard.anomaly.AnomalyDtos.ResultResponse;
 import com.ledgerguard.anomaly.AnomalyDtos.ReviewRequest;
@@ -98,6 +99,24 @@ public class AnomalyController {
     public ResultResponse review(@AuthenticationPrincipal AuthUser user, @PathVariable Long companyId,
                                  @PathVariable Long id, @Valid @RequestBody ReviewRequest request) {
         return service.review(user.userId(), companyId, id, request);
+    }
+
+    @PutMapping("/anomalies/{id}/explanation")
+    public ResultResponse editExplanation(@AuthenticationPrincipal AuthUser user, @PathVariable Long companyId,
+                                          @PathVariable Long id, @Valid @RequestBody EditRequest request) {
+        return service.editExplanation(user.userId(), companyId, id, request);
+    }
+
+    @PostMapping("/anomalies/{id}/explanation/regenerate")
+    public ResultResponse regenerateExplanation(@AuthenticationPrincipal AuthUser user, @PathVariable Long companyId,
+                                                @PathVariable Long id) {
+        return service.regenerateExplanation(user.userId(), companyId, id);
+    }
+
+    @PostMapping("/anomalies/scans/{scanId}/summary/regenerate")
+    public ScanResponse regenerateScanSummary(@AuthenticationPrincipal AuthUser user, @PathVariable Long companyId,
+                                              @PathVariable Long scanId) {
+        return service.regenerateScanSummary(user.userId(), companyId, scanId);
     }
 
     @PostMapping("/anomalies/{id}/reopen")

@@ -8,6 +8,7 @@ import { ANOMALY_SOURCE_LABEL, RISK_LEVEL_LABEL, type AnomalyDetail, type Member
 import { useCompany } from "@/components/company-context";
 import { Button, Card, ErrorBanner, Loading, Money, PageHeader, formatDateTime, td, th } from "@/components/ui";
 import { AnomalyStatusBadge, MlStatusBadge, RiskBadge, RiskBreakdown } from "../risk";
+import { ExplanationPanel, usePollWhilePending } from "../explanation";
 import { ReviewPanel } from "./review-panel";
 
 export default function AnomalyDetailPage() {
@@ -15,6 +16,7 @@ export default function AnomalyDetailPage() {
   const { base, canWrite, company } = useCompany();
   const { data: r, error, reload } = useApi<AnomalyDetail>(/^\d+$/.test(id) ? `${base}/anomalies/${id}` : null);
   const members = useApi<Member[]>(`${base}/members`);
+  usePollWhilePending(r?.explanation?.status, reload);
 
   if (error) return <ErrorBanner error={error} />;
   if (!r) return <Loading />;
@@ -58,6 +60,18 @@ export default function AnomalyDetailPage() {
                 Risk Score = 규칙 점수(최대 100) + ML 점수 × {ml.maxPoints}점, 최대 100. 40점 이상만 이상거래로 저장합니다.
               </p>
             </div>
+          </Card>
+
+          <Card title="AI 설명 (로컬 LLM)" actions={<span className="text-[11px] text-ink-soft">판정이 아닌 설명입니다</span>}>
+            <ExplanationPanel
+              explanation={r.explanation}
+              canWrite={canWrite}
+              regeneratePath={`${base}/anomalies/${r.id}/explanation/regenerate`}
+              editPath={`${base}/anomalies/${r.id}/explanation`}
+              memberName={memberName}
+              onChanged={reload}
+              emptyText="아직 설명이 없습니다."
+            />
           </Card>
 
           <Card title="규칙 근거" actions={<span className="text-xs text-ink-soft">규칙 점수 {r.ruleScore}</span>}>

@@ -1,6 +1,7 @@
 package com.ledgerguard.anomaly;
 
 import com.ledgerguard.anomaly.AnomalyDtos.ResultListItem;
+import com.ledgerguard.explanation.ExplanationDtos.EditRequest;
 import com.ledgerguard.anomaly.AnomalyDtos.ResultResponse;
 import com.ledgerguard.anomaly.AnomalyDtos.ReviewRequest;
 import com.ledgerguard.anomaly.AnomalyDtos.ScanRequest;
@@ -27,6 +28,10 @@ import com.ledgerguard.common.ApiException;
 import com.ledgerguard.common.ErrorCode;
 import com.ledgerguard.company.CompanyAccessService;
 import com.ledgerguard.company.CompanyRepository;
+import com.ledgerguard.explanation.AiExplanation;
+import com.ledgerguard.explanation.AiExplanation.TargetType;
+import com.ledgerguard.explanation.ExplanationDtos.ExplanationView;
+import com.ledgerguard.explanation.ExplanationService;
 import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -34,6 +39,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -76,12 +82,14 @@ public class AnomalyService {
     private final AnomalyModelClient model;
     private final CompanyAccessService access;
     private final AuditService audit;
+    private final ExplanationService explanations;
     private final int mlMinSamples;
 
     public AnomalyService(AnomalyResultRepository results, AnomalyScanRepository scans,
                           AnomalySettingsRepository settingsRepository, CompanyRepository companies,
                           AnomalyEventLoader loader, AnomalyModelClient model, CompanyAccessService access,
-                          AuditService audit, @Value("${app.anomaly.ml-min-samples}") int mlMinSamples) {
+                          AuditService audit, ExplanationService explanations,
+                          @Value("${app.anomaly.ml-min-samples}") int mlMinSamples) {
         this.results = results;
         this.scans = scans;
         this.settingsRepository = settingsRepository;
@@ -90,6 +98,7 @@ public class AnomalyService {
         this.model = model;
         this.access = access;
         this.audit = audit;
+        this.explanations = explanations;
         this.mlMinSamples = mlMinSamples;
     }
 
@@ -181,7 +190,7 @@ public class AnomalyService {
                 List<RuleHit> eventHits = hits.getOrDefault(e.key(), List.of());
                 ScoredSample scored = ml.scores().get(e.key());
                 Risk risk = RiskScorer.combine(eventHits, scored == null ? null : scored.score());
-                counter.analyze(source, risk);
+                counter.analyze(source, risk, e, eventHits);
                 apply(companyId, existing.remove(e.sourceId()), e, risk, eventHits, features.get(e.key()),
                         mlDetail(ml, scored, risk), scan.getId(), counter);
             }
@@ -207,10 +216,24 @@ public class AnomalyService {
         results.flush();
         scans.saveAndFlush(scan);
 
-        ScanResponse response = ScanResponse.from(scan);
+        requestExplanations(companyId, scan, counter);
+        ScanResponse response = scanResponse(scan);
         audit.record(companyId, userId, AuditActions.ANOMALY_SCAN, AuditActions.TARGET_ANOMALY_SCAN, scan.getId(),
                 null, response);
         return response;
+    }
+
+    /**
+     * 탐지 이유 설명(LLM)을 요청한다. 위험도 높은 순서로 큐에 넣고, 근거가 이전과 같은 결과는 다시 만들지 않는다.
+     * 실제 큐 등록은 커밋 이후이며 실패해도 분석은 성공으로 남는다(설명만 FAILED).
+     */
+    private void requestExplanations(Long companyId, AnomalyScan scan, ScanCounter counter) {
+        counter.toExplain.stream()
+                .sorted(Comparator.comparingInt(AnomalyResult::getRiskScore).reversed())
+                .forEach(r -> explanations.request(companyId, TargetType.ANOMALY_RESULT, r.getId(),
+                        AnomalyExplanationFacts.forResult(r)));
+        explanations.request(companyId, TargetType.ANOMALY_SCAN, scan.getId(),
+                AnomalyExplanationFacts.forScan(scan, counter.flaggedItems));
     }
 
     /**
@@ -233,6 +256,7 @@ public class AnomalyService {
             clearReview(r);
             r.setStatus(ResultStatus.OPEN);
             counter.reopened++;
+            counter.toExplain.add(r);
             return;
         }
         if (risk.flagged()) {
@@ -246,6 +270,7 @@ public class AnomalyService {
             fill(r, e, risk, hits, features, mlDetail, scanId);
             r.setStatus(ResultStatus.OPEN);
             results.save(r);
+            counter.toExplain.add(r);
         } else if (r != null && r.getStatus() == ResultStatus.OPEN) {
             fill(r, e, risk, hits, features, mlDetail, scanId);
             r.setStatus(ResultStatus.CLEARED);
@@ -361,13 +386,19 @@ public class AnomalyService {
         int keptReviewed;
         final Map<RiskLevel, Integer> byLevel = new EnumMap<>(RiskLevel.class);
         final Map<SourceType, Integer> bySource = new EnumMap<>(SourceType.class);
+        /** 이번 분석에서 OPEN이 된 결과 (설명 요청 대상) */
+        final List<AnomalyResult> toExplain = new ArrayList<>();
+        /** 기준을 넘은 대상 거래 (분석 요약 근거) */
+        final List<AnomalyExplanationFacts.FlaggedItem> flaggedItems = new ArrayList<>();
 
-        void analyze(SourceType source, Risk risk) {
+        void analyze(SourceType source, Risk risk, AnomalyEvent e, List<RuleHit> hits) {
             analyzed++;
             bySource.merge(source, 1, Integer::sum);
             if (risk.flagged()) {
                 flagged++;
                 byLevel.merge(risk.level(), 1, Integer::sum);
+                flaggedItems.add(new AnomalyExplanationFacts.FlaggedItem(e.date(), e.counterparty(), e.amount(),
+                        risk.score(), risk.level(), hits));
             }
         }
 
@@ -416,7 +447,7 @@ public class AnomalyService {
         after.put("ruleCodes", new ArrayList<>(codes(r.getRuleHits())));
         audit.record(companyId, userId, AuditActions.ANOMALY_REVIEW, AuditActions.TARGET_ANOMALY_RESULT, id,
                 before, after);
-        return ResultResponse.from(r);
+        return resultResponse(r);
     }
 
     /** 판정을 취소하고 다시 검토 대기로 돌린다. 이전 판정은 context.previousReview와 Audit Log에 남는다. */
@@ -440,7 +471,7 @@ public class AnomalyService {
         after.put("note", note.trim());
         audit.record(companyId, userId, AuditActions.ANOMALY_REOPEN, AuditActions.TARGET_ANOMALY_RESULT, id,
                 before, after);
-        return ResultResponse.from(r);
+        return resultResponse(r);
     }
 
     // ================================================================ 조회
@@ -474,7 +505,7 @@ public class AnomalyService {
     @Transactional(readOnly = true)
     public ResultResponse get(Long userId, Long companyId, Long id) {
         access.requireMember(userId, companyId);
-        return ResultResponse.from(find(companyId, id));
+        return resultResponse(find(companyId, id));
     }
 
     @Transactional(readOnly = true)
@@ -495,7 +526,7 @@ public class AnomalyService {
         }
         long open = byStatus.getOrDefault(ResultStatus.OPEN, 0L);
         long highRisk = openByLevel.get(RiskLevel.HIGH) + openByLevel.get(RiskLevel.CRITICAL);
-        ScanResponse lastScan = scans.findFirstByCompanyIdOrderByIdDesc(companyId).map(ScanResponse::from).orElse(null);
+        ScanResponse lastScan = scans.findFirstByCompanyIdOrderByIdDesc(companyId).map(this::scanResponse).orElse(null);
         return new SummaryResponse(openByLevel, open, highRisk, byStatus.getOrDefault(ResultStatus.CONFIRMED, 0L),
                 byStatus.getOrDefault(ResultStatus.DISMISSED, 0L), byStatus.getOrDefault(ResultStatus.CLEARED, 0L),
                 lastScan);
@@ -504,7 +535,59 @@ public class AnomalyService {
     @Transactional(readOnly = true)
     public List<ScanResponse> scans(Long userId, Long companyId) {
         access.requireMember(userId, companyId);
-        return scans.findTop20ByCompanyIdOrderByIdDesc(companyId).stream().map(ScanResponse::from).toList();
+        return scans.findTop20ByCompanyIdOrderByIdDesc(companyId).stream().map(this::scanResponse).toList();
+    }
+
+    // ================================================================ 설명 (LLM)
+
+    /** 탐지 이유 설명을 다시 만든다. 사람이 수정한 설명도 새 설명으로 바뀐다. */
+    @Transactional
+    public ResultResponse regenerateExplanation(Long userId, Long companyId, Long id) {
+        access.requireWrite(userId, companyId);
+        AnomalyResult r = find(companyId, id);
+        Map<String, Object> before = ExplanationService.snapshot(
+                explanations.find(TargetType.ANOMALY_RESULT, id).orElse(null));
+        AiExplanation e = explanations.regenerate(companyId, TargetType.ANOMALY_RESULT, id,
+                AnomalyExplanationFacts.forResult(r));
+        audit.record(companyId, userId, AuditActions.ANOMALY_EXPLANATION_REGENERATE,
+                AuditActions.TARGET_ANOMALY_RESULT, id, before, ExplanationService.snapshot(e));
+        return ResultResponse.from(r, ExplanationView.from(e));
+    }
+
+    /** 사람이 설명을 고친다. 수정 전후는 Audit Log에 남는다. */
+    @Transactional
+    public ResultResponse editExplanation(Long userId, Long companyId, Long id, EditRequest req) {
+        access.requireWrite(userId, companyId);
+        AnomalyResult r = find(companyId, id);
+        Map<String, Object> before = ExplanationService.snapshot(
+                explanations.find(TargetType.ANOMALY_RESULT, id).orElse(null));
+        AiExplanation e = explanations.edit(userId, companyId, TargetType.ANOMALY_RESULT, id, req.text(),
+                req.checkpoints(), AnomalyExplanationFacts.forResult(r));
+        audit.record(companyId, userId, AuditActions.ANOMALY_EXPLANATION_EDIT, AuditActions.TARGET_ANOMALY_RESULT,
+                id, before, ExplanationService.snapshot(e));
+        return ResultResponse.from(r, ExplanationView.from(e));
+    }
+
+    /** 분석 요약을 다시 만든다. 근거는 분석 때 저장한 facts를 그대로 쓴다. */
+    @Transactional
+    public ScanResponse regenerateScanSummary(Long userId, Long companyId, Long scanId) {
+        access.requireWrite(userId, companyId);
+        AnomalyScan scan = scans.findById(scanId).filter(s -> s.getCompanyId().equals(companyId))
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        Map<String, Object> before = ExplanationService.snapshot(
+                explanations.find(TargetType.ANOMALY_SCAN, scanId).orElse(null));
+        AiExplanation e = explanations.regenerate(companyId, TargetType.ANOMALY_SCAN, scanId, null);
+        audit.record(companyId, userId, AuditActions.ANOMALY_EXPLANATION_REGENERATE,
+                AuditActions.TARGET_ANOMALY_SCAN, scanId, before, ExplanationService.snapshot(e));
+        return ScanResponse.from(scan, ExplanationView.from(e));
+    }
+
+    private ResultResponse resultResponse(AnomalyResult r) {
+        return ResultResponse.from(r, explanations.view(TargetType.ANOMALY_RESULT, r.getId()).orElse(null));
+    }
+
+    private ScanResponse scanResponse(AnomalyScan s) {
+        return ScanResponse.from(s, explanations.view(TargetType.ANOMALY_SCAN, s.getId()).orElse(null));
     }
 
     // ================================================================ 도우미

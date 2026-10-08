@@ -1,6 +1,6 @@
 # LedgerGuard AI 개발 환경.
-# Phase 1~4: PostgreSQL + Valkey + SeaweedFS + Spring Boot backend + FastAPI AI 서비스 + Next.js frontend.
-# 이후 Phase에서 ollama가 이 파일에 추가된다.
+# Phase 1~5: PostgreSQL + Valkey + SeaweedFS + Ollama + Spring Boot backend + FastAPI AI 서비스 + Next.js frontend.
+# NVIDIA GPU가 있으면: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
 services:
   postgres:
     # pgvector 확장이 포함된 PostgreSQL 16 (Phase 8 RAG에서 사용).
@@ -48,6 +48,21 @@ services:
       timeout: 3s
       retries: 20
 
+  # 로컬 LLM (이상거래 설명·분석 요약). 포트는 외부에 열지 않는다. 모델은 ai-service가 첫 실행 때 내려받아 볼륨에 캐시한다.
+  # GPU 없이도 CPU로 동작하지만 느리다. 실패하거나 느려도 규칙 근거로 만든 템플릿 설명으로 대체된다.
+  ollama:
+    image: ollama/ollama:0.34.4
+    container_name: ledgerguard-ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   backend:
     build:
       context: ./backend
@@ -73,8 +88,8 @@ services:
     ports:
       - "${BACKEND_PORT:-8080}:8080"
 
-  # OCR(PaddleOCR) · 필드 추출 · 계정과목 후보 · 이상탐지 ML(IsolationForest).
-  # OCR은 Valkey 큐를 소비해 결과를 backend 내부 API로 보내고, 이상탐지는 backend가 동기 호출한다.
+  # OCR(PaddleOCR) · 필드 추출 · 계정과목 후보 · 이상탐지 ML(IsolationForest) · LLM 설명(Ollama).
+  # OCR·LLM 설명은 각자의 Valkey 큐를 소비해 결과를 backend 내부 API로 보내고, 이상탐지 ML은 backend가 동기 호출한다.
   ai-service:
     build:
       context: ./ai-service
@@ -84,11 +99,16 @@ services:
         condition: service_healthy
       seaweedfs:
         condition: service_healthy
+      ollama:
+        condition: service_healthy
     environment:
       VALKEY_URL: redis://valkey:6379/0
       SEAWEEDFS_FILER_URL: http://seaweedfs:8888
       BACKEND_URL: http://backend:8080
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token-change-me}
+      OLLAMA_URL: http://ollama:11434
+      # 8GB VRAM에 맞는 7B 4비트 모델. 바꾸려면 .env에 LLM_MODEL을 지정한다.
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
     volumes:
       # OCR 모델은 첫 실행 때 내려받아 캐시한다 (재빌드해도 다시 받지 않음)
       - ocr-models:/models
@@ -114,3 +134,5 @@ volumes:
   seaweedfs-data:
   ocr-models:
     name: ledgerguard-ocr-models
+  ollama-models:
+    name: ledgerguard-ollama-models

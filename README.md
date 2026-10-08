@@ -13,22 +13,26 @@
 | **2** | **Bank Reconciliation** — 은행 CSV 업로드, Match Score, 자동 제안, 승인/거절/수동 매칭/취소 ([설계](docs/phase2-bank-reconciliation.md)) | **완료** (1:1. 1:N·N:1은 데이터 모델만 준비) |
 | **3** | **Document AI** — 영수증·세금계산서 업로드(SeaweedFS), Valkey 작업 큐, PaddleOCR, 규칙 기반 필드 추출·검증, 계정과목 추천, 승인, 전표 생성 ([설계](docs/phase3-document-ai.md)) | **완료** |
 | **4** | **Anomaly Detection** — 규칙 엔진(10개 규칙), IsolationForest(FastAPI), Risk Score·Level, 이상거래 화면·검토(확정/정상/수준 조정/다시 열기), 탐지 기준 설정 ([설계](docs/phase4-anomaly-detection.md)) | **완료** |
-| 5~8 | Local LLM, 월마감 Copilot, Q&A, RAG | 예정 |
+| **5** | **Local LLM** — Ollama(qwen2.5 7B, GPU 선택), LLM Provider 인터페이스, 이상거래 설명·분석 요약(Valkey 큐 비동기), 출력 검증·템플릿 대체, 수정·다시 생성 ([설계](docs/phase5-local-llm.md)) | **완료** |
+| 6~8 | 월마감 Copilot, Q&A, RAG | 예정 |
 
 ## 구조
 
 ```
 회계 AI/
-├─ docker-compose.yml        # PostgreSQL(pgvector), Valkey, SeaweedFS, backend, ai-service, frontend
+├─ docker-compose.yml        # PostgreSQL(pgvector), Valkey, SeaweedFS, Ollama, backend, ai-service, frontend
+├─ docker-compose.gpu.yml    # (선택) Ollama를 NVIDIA GPU로 실행
 ├─ .env.example
 ├─ docs/PROJECT_SPEC.md      # 전체 설계 문서
 ├─ docs/phase2-bank-reconciliation.md
 ├─ docs/phase3-document-ai.md
 ├─ docs/phase4-anomaly-detection.md
+├─ docs/phase5-local-llm.md
 ├─ ai-service/               # FastAPI / Python 3.12 / PaddleOCR 3.7 (CPU)
 │  ├─ app/ocr/               # OCR 엔진 인터페이스, PaddleOCR 구현, 이미지·PDF 로딩, 줄 묶기
 │  ├─ app/extraction/        # 영수증·세금계산서 규칙 기반 필드 추출 (금액·날짜·사업자번호 패턴)
 │  ├─ app/classification/    # 키워드 규칙 기반 계정과목 후보
+│  ├─ app/llm/               # LLM Provider(Ollama), 설명 프롬프트·출력 검증·템플릿 대체, LLM 큐 worker
 │  ├─ app/anomaly/           # 이상탐지 ML: 특성 변환, IsolationForest(AnomalyModel 인터페이스), robust z 근거
 │  ├─ app/worker.py          # Valkey 큐 소비 → 처리 → backend 내부 API 콜백
 │  ├─ scripts/make_samples.py # 가상 영수증·세금계산서 샘플 생성
@@ -55,6 +59,7 @@
       ├─ bank/               # 은행 계좌, CSV 파서(UTF-8/CP949), 업로드·중복 방지
       ├─ reconciliation/     # Match Score 엔진, 자동 대사, 승인/거절/수동 매칭/취소
       ├─ document/           # 증빙 업로드·검증(DocumentValidator)·추천·승인·전표 생성, SeaweedFS·Valkey 어댑터
+      ├─ explanation/        # LLM 설명 저장·요청(커밋 후 큐)·콜백 반영·수정·시간 초과 (AiExplanation)
       └─ anomaly/            # 이상거래: 특성(AnomalyFeatureExtractor)·규칙(AnomalyRuleEngine)·점수(RiskScorer), ML 클라이언트, 검토
 ```
 
@@ -64,10 +69,14 @@
 
 ```bash
 docker compose up --build
+# NVIDIA GPU가 있으면 (LLM 설명이 건당 수 초로 빨라진다)
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
 ```
 
 모든 환경 변수는 `docker-compose.yml`에 개발용 기본값이 있다. 바꾸려면 루트에 `.env`를 만들어 덮어쓴다 (예: `JWT_SECRET`, `INTERNAL_API_TOKEN`, `POSTGRES_PASSWORD`, 포트). 개발 외 환경에서는 `JWT_SECRET`과 `INTERNAL_API_TOKEN`을 반드시 교체한다.
 
+> 첫 실행 때 ai-service가 LLM 모델(`qwen2.5:7b-instruct`, 약 4.7GB)을 Ollama로 내려받아 `ledgerguard-ollama-models` 볼륨에 캐시한다. 내려받는 동안의 설명은 템플릿 요약으로 대체된다. 모델은 `.env`의 `LLM_MODEL`로 바꿀 수 있다.
+>
 > 첫 실행 때 ai-service가 OCR 모델(약 수십 MB)을 내려받아 `ledgerguard-ocr-models` 볼륨에 캐시한다. ai-service 이미지는 PaddlePaddle 때문에 2GB 이상이다.
 
 - 웹: http://localhost:3000 (회원가입 → 회사 등록 → 기본 계정과목 자동 생성)
@@ -109,7 +118,8 @@ cd backend
 - `ReconciliationApiIntegrationTest` — 업로드·재업로드 중복 방지 → 자동 대사 → 승인/거절/재실행/수동 매칭/취소 → 현황 집계 → Audit Log → DB 안전망(이중 확정, 금액 균형), 회사 격리·VIEWER 권한 (**Docker 필요**)
 - `AnomalyRuleEngineTest` — 규칙 10개의 적중·경계(창 크기, 기준 이상/미만, 이력 부족), 배점 정렬, spec 예시 거래 CRITICAL, 평범한 거래 무적중
 - `AnomalyFeatureExtractorTest` — 거래처 이력 특성(180일 평균·90일 빈도·간격), 같은 날 순서, ML 입력 형식, Risk Score 조합·Level 경계
-- `AnomalyApiIntegrationTest` — 은행 CSV → 분석(가짜 ML) → 목록·상세·요약 → 판정·수준 조정 → 재분석 시 판정 보존 → 다시 열기 → 새 근거 시 자동 재오픈 → ML 장애 시 규칙만으로 계산·해제 → ML 끔, 거래 원천의 증빙·영수증 중복(SQL)·취소 시 해제, 권한·회사 격리, DB 제약 (**Docker 필요**)
+- `AnomalyExplanationFactsTest` — LLM 근거 데이터: 화면과 같은 표시 형식(금액·시각·요일·배수), ML 미사용 시 사유만, 요약의 수준별·규칙별 건수와 상위 거래 순위
+- `AnomalyApiIntegrationTest` — 은행 CSV → 분석(가짜 ML) → 목록·상세·요약 → 판정·수준 조정 → 재분석 시 판정 보존 → 다시 열기 → 새 근거 시 자동 재오픈 → ML 장애 시 규칙만으로 계산·해제 → ML 끔, 거래 원천의 증빙·영수증 중복(SQL)·취소 시 해제, 권한·회사 격리, DB 제약, **LLM 설명**(커밋 후 큐 등록·위험도 순, 내부 토큰·시도 번호 멱등, 근거가 같으면 재요청 안 함, 수정·Audit, 근거 변경 시 stale, 다시 생성, 시간 초과 후 늦은 결과, 큐 장애, 요약 재생성, 권한) (**Docker 필요**)
 
 ```bash
 cd frontend
@@ -133,6 +143,7 @@ docker compose run --rm -u root -v "$PWD/ai-service:/src" -w /src ai-service sh 
 - `test_extraction.py` — 영수증(라벨·추정), 세금계산서 표 양식(x 위치로 공급자/공급받는자 구분), 계정과목 규칙
 - `test_ocr_samples.py` — 실제 PaddleOCR로 가상 영수증 PNG·세금계산서 PDF 전체 파이프라인 (Paddle 있는 환경에서만)
 - `test_anomaly.py` — 이상치가 가장 높은 점수, robust z 근거, 같은 입력 같은 점수, 표본 부족, 결측값 대체, 계정과목 빈도 인코딩, API
+- `test_llm.py` — 근거 그대로인 설명 통과, 만원·반올림 표기 허용, 근거에 없는 숫자·단정 표현·외국 문자·뒤집힌 "기준 초과"·길이·JSON 오류 시 템플릿 대체(거부된 출력 보존), LLM 장애, 템플릿은 항상 검증 통과, worker 메시지, Ollama 요청 형식(MockTransport)
 
 ## 주요 설계 결정
 
@@ -155,11 +166,14 @@ docker compose run --rm -u root -v "$PWD/ai-service:/src" -w /src ai-service sh 
 - **계정과목 추천:** 같은 거래처(사업자번호)의 과거 승인 이력(0.95)이 키워드 규칙(최대 0.85)보다 우선한다. 승인 기록에는 추천을 따랐는지(`followedRecommendation`)가 남는다.
 - **파일 보안:** 형식은 확장자가 아니라 매직 바이트로 판별하고, 저장 경로는 서버가 UUID로 만든다(worker도 경로 형식을 다시 검사). SeaweedFS는 외부에 포트를 열지 않고, 파일은 권한 확인 후 Spring이 `nosniff`로 내려준다. 같은 파일(SHA-256)은 다시 올릴 수 없다.
 - **PaddleOCR 설정:** `lang="korean"`만 주면 범용 인식 모델이 선택돼 한글을 못 읽으므로 `korean_PP-OCRv5_mobile_rec`를 명시한다. Paddle 3.3 CPU의 oneDNN 버그 때문에 `enable_mkldnn=False`.
-- **이상거래 — 규칙이 판단, ML은 보조, 사람이 판정:** Spring의 순수 클래스 `AnomalyFeatureExtractor`(거래처 빈도·평균·간격 등) → `AnomalyRuleEngine`(중복 결제·쪼개기·승인 기준 직전·평균 대비 고액·신규 거래처·영수증 중복·증빙 없음·반복·주말·심야·계정 급증) → FastAPI IsolationForest → `RiskScorer`. Risk Score = 규칙 점수 + 40 × ML 점수(최대 100)라 ML만으로는 MEDIUM까지만 오른다. 40점 이상만 저장하고, 규칙별 사유·판단 값과 ML 근거(모집단 중앙값 대비 robust z가 큰 특성)를 함께 남긴다. LLM은 쓰지 않는다.
+- **이상거래 — 규칙이 판단, ML은 보조, 사람이 판정:** Spring의 순수 클래스 `AnomalyFeatureExtractor`(거래처 빈도·평균·간격 등) → `AnomalyRuleEngine`(중복 결제·쪼개기·승인 기준 직전·평균 대비 고액·신규 거래처·영수증 중복·증빙 없음·반복·주말·심야·계정 급증) → FastAPI IsolationForest → `RiskScorer`. Risk Score = 규칙 점수 + 40 × ML 점수(최대 100)라 ML만으로는 MEDIUM까지만 오른다. 40점 이상만 저장하고, 규칙별 사유·판단 값과 ML 근거(모집단 중앙값 대비 robust z가 큰 특성)를 함께 남긴다. 점수 계산에는 LLM을 쓰지 않는다(설명만 Phase 5).
 - **분석 대상과 모집단:** 은행 거래·거래의 출금만 분석한다. 같은 결제가 두 원천에 모두 있을 수 있어 원천별 모집단 안에서만 비교한다. 계정과목·증빙은 연결 전표(은행 거래는 확정 대사)를 따라 찾는다. 대상 기간 앞 180일을 기준선으로, 뒤 7일을 중복 결제 창으로 함께 읽는다.
 - **IsolationForest:** 저장된 모델 없이 요청마다 회사·원천 모집단으로 학습하고 `random_state`를 고정해 재현 가능하다. 표본이 30건 미만이면 건너뛰고, AI 서비스 장애·시간 초과(20초) 때는 규칙 점수만으로 계산해 `mlStatus=UNAVAILABLE`을 남긴다. Spring ↔ FastAPI는 동기 HTTP이며 모델은 `AnomalyModel` 인터페이스 뒤에 있다.
 - **재분석과 사람의 판정:** 재분석은 이상 확정·정상 처리된 결과를 덮어쓰지 않는다. 단, 판정 이후 새 규칙이 적중하면(새 근거) 다시 검토 대기로 열고 이전 판정을 `context.previousReview`에 남긴다. 기준 미만이 되거나 원천 거래가 취소되면 해제(CLEARED)된다. 분석·판정은 회사 행 잠금으로 직렬화해 동시에 실행돼도 판정이 사라지지 않는다. 판정에는 의견이 필수이고(DB CHECK), 수준 조정은 `adjusted_level`로 따로 저장해 산정값과 구분한다(`effective_level`은 DB 생성 컬럼).
 - **탐지 기준:** 승인 기준 금액·직전 비율·증빙 기준·신규 거래처 기준·평균 대비 배수·심야 시간·ML 사용은 회사별 설정(ADMIN)이며, 분석마다 그때의 설정 스냅샷을 저장한다.
+- **LLM은 설명만:** 이상 여부·점수·금액은 Phase 4의 규칙과 알고리즘이 정하고, LLM(Ollama 로컬 모델)은 Spring이 미리 계산해 표시 형식으로 만든 근거 데이터(facts)를 문장으로 옮긴다. 원본 데이터는 보내지 않는다. 입력 facts·모델·프롬프트 버전·소요 시간을 함께 저장해 무엇을 보고 설명했는지 확인할 수 있다.
+- **LLM 출력 검증:** 설명의 숫자는 근거 데이터의 숫자(만원·억 단위, 반올림 포함)여야 하고, 사기·횡령·위반 같은 단정 표현, 한자·영어 섞임, 근거에 없는 "기준 초과" 주장(7B 모델이 "기준 미만"을 뒤집는 오류가 실제로 반복됨)은 걸러낸다. 걸리면 규칙 근거로 만든 템플릿 요약(FALLBACK)을 쓰고 거부된 출력은 남긴다. Ollama가 없거나 실패해도 같은 방식으로 대체되어 기능은 멈추지 않는다. 다만 검증은 숫자·표현 수준이라 문장 해석의 미묘한 오류까지 막지는 못하므로, 화면에서 규칙 근거를 항상 함께 보여주고 사람이 수정할 수 있게 했다.
+- **LLM 비동기 처리:** 분석 커밋 후 OPEN 결과(위험도 높은 순)와 분석 요약을 별도 Valkey 큐에 넣고, ai-service의 LLM worker(OCR worker와 다른 스레드)가 처리해 내부 API로 콜백한다. 근거가 이전과 같으면 다시 만들지 않고(factsHash), 현재 시도의 결과만 반영하며, 30분 무응답은 FAILED가 되어 다시 생성할 수 있다. 사람이 수정한 설명은 재분석이 덮어쓰지 않고 근거가 바뀌었다는 표시(stale)만 남긴다. RTX 5050(8GB) 기준 설명 한 건 약 2~5초, 첫 호출은 모델 로딩으로 약 1분.
 - **권한별 UI:** 쓰기 버튼은 Role에 따라 숨기지만, 실제 권한 검사는 항상 백엔드가 한다. 아직 구현되지 않은 Phase 메뉴는 사이드바에 비활성으로 표시한다.
 
 ## API 요약 (`/api/v1`)
@@ -176,11 +190,12 @@ docker compose run --rm -u root -v "$PWD/ai-service:/src" -w /src ai-service sh 
 | 증빙 | `POST·GET /companies/{cid}/documents` (multipart `file`, `docType`), `GET …/summary`, `GET …/{id}`, `GET …/{id}/file`, `PUT …/{id}/fields`, `POST …/{id}/approve·reject·retry·journal-entry` |
 | 내부(AI 서비스) | `POST /internal/v1/documents/{id}/ai-result` (`X-Internal-Token`) |
 | 은행 대사 | `GET /companies/{cid}/bank-transactions`, `GET …/{id}/candidates`, `POST /reconciliation/run`, `GET /reconciliation/summary`, `POST /reconciliation/matches`, `GET …/matches/{id}`, `POST …/{id}/confirm·reject·cancel` |
-| 이상거래 | `GET·PUT /companies/{cid}/anomaly-settings`, `POST /anomalies/scan`, `GET /anomalies/scans`, `GET /anomalies`, `GET …/summary`, `GET …/{id}`, `POST …/{id}/review·reopen` |
-| AI 서비스(FastAPI) | `POST /v1/anomaly/score` (backend가 호출, 저장 안 함) |
+| 이상거래 | `GET·PUT /companies/{cid}/anomaly-settings`, `POST /anomalies/scan`, `GET /anomalies/scans`, `GET /anomalies`, `GET …/summary`, `GET …/{id}`, `POST …/{id}/review·reopen`, `PUT …/{id}/explanation`, `POST …/{id}/explanation/regenerate`, `POST …/scans/{id}/summary/regenerate` |
+| AI 서비스(FastAPI) | `POST /v1/anomaly/score` (backend가 호출, 저장 안 함), `POST /v1/explain` (디버그·데모용) |
+| 내부(LLM worker) | `POST /internal/v1/explanations/{id}/result` (`X-Internal-Token`) |
 | Audit Log | `GET /companies/{cid}/audit-logs` |
 
-권한: 조회는 ADMIN·ACCOUNTANT·VIEWER, 거래·전표·계정과목·은행 대사·증빙 변경과 이상거래 분석·판정은 ADMIN·ACCOUNTANT, 회사 정보·멤버 관리·탐지 기준 변경은 ADMIN, Audit Log 조회는 ADMIN·ACCOUNTANT.
+권한: 조회는 ADMIN·ACCOUNTANT·VIEWER, 거래·전표·계정과목·은행 대사·증빙 변경과 이상거래 분석·판정·AI 설명 수정과 다시 생성은 ADMIN·ACCOUNTANT, 회사 정보·멤버 관리·탐지 기준 변경은 ADMIN, Audit Log 조회는 ADMIN·ACCOUNTANT.
 
 오류 응답은 항상 `{ code, message, details[], timestamp }` 형식이다. (예: `JOURNAL_NOT_BALANCED`)
 

@@ -1,5 +1,5 @@
 # LedgerGuard AI 개발 환경.
-# Phase 1~3: PostgreSQL + Valkey + SeaweedFS + Spring Boot backend + FastAPI AI 서비스 + Next.js frontend.
+# Phase 1~4: PostgreSQL + Valkey + SeaweedFS + Spring Boot backend + FastAPI AI 서비스 + Next.js frontend.
 # 이후 Phase에서 ollama가 이 파일에 추가된다.
 services:
   postgres:
@@ -67,11 +67,14 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       VALKEY_URL: redis://valkey:6379
       SEAWEEDFS_FILER_URL: http://seaweedfs:8888
+      # 이상탐지 ML(IsolationForest). ai-service가 없거나 느려도 규칙 점수만으로 동작한다.
+      AI_SERVICE_URL: http://ai-service:8000
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-dev-internal-token-change-me}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
 
-  # OCR(PaddleOCR) · 필드 추출 · 계정과목 후보. Valkey 큐를 소비하고 결과를 backend 내부 API로 보낸다.
+  # OCR(PaddleOCR) · 필드 추출 · 계정과목 후보 · 이상탐지 ML(IsolationForest).
+  # OCR은 Valkey 큐를 소비해 결과를 backend 내부 API로 보내고, 이상탐지는 backend가 동기 호출한다.
   ai-service:
     build:
       context: ./ai-service

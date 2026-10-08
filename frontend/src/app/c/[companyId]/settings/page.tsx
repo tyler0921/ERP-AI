@@ -5,6 +5,7 @@ import { api, ApiError, useApi } from "@/lib/api";
 import { ROLE_LABEL, type Member, type Role } from "@/lib/types";
 import { useCompany } from "@/components/company-context";
 import { Badge, Button, Card, ErrorBanner, Field, Input, Loading, PageHeader, Select, td, th } from "@/components/ui";
+import { AnomalySettingsCard } from "./anomaly-settings";
 
 const ROLES = Object.keys(ROLE_LABEL) as Role[];
 
@@ -50,7 +51,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="설정" description="회사 정보와 멤버 권한을 관리합니다. 회사에는 최소 한 명의 관리자가 있어야 합니다." />
+      <PageHeader title="설정" description="회사 정보, 멤버 권한, 이상거래 탐지 기준을 관리합니다. 회사에는 최소 한 명의 관리자가 있어야 합니다." />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
         <Card title="회사 정보">
@@ -140,6 +141,8 @@ export default function SettingsPage() {
             </form>
           )}
         </Card>
+
+        <AnomalySettingsCard base={base} isAdmin={isAdmin} />
       </div>
     </>
   );

@@ -52,6 +52,9 @@ public enum ErrorCode {
     RECON_AMOUNT_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY, "은행 거래 금액과 전표의 은행 계정 금액이 일치하지 않습니다."),
     RECON_MATCH_STATE_INVALID(HttpStatus.CONFLICT, "현재 상태에서는 처리할 수 없는 매칭입니다."),
 
+    ANOMALY_PERIOD_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "분석 기간이 올바르지 않습니다. (시작일 ≤ 종료일, 최대 366일)"),
+    ANOMALY_STATE_INVALID(HttpStatus.CONFLICT, "현재 상태에서는 처리할 수 없는 이상거래 결과입니다."),
+
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다."),
     DATA_INTEGRITY_VIOLATION(HttpStatus.CONFLICT, "데이터 무결성 제약을 위반했습니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");

@@ -17,7 +17,7 @@ const NAV: { href: string; label: string; phase?: number }[] = [
   { href: "accounts", label: "계정과목" },
   { href: "documents", label: "증빙 문서" },
   { href: "reconciliation", label: "은행 대사" },
-  { href: "anomalies", label: "이상거래", phase: 4 },
+  { href: "anomalies", label: "이상거래" },
   { href: "closing", label: "월마감", phase: 6 },
   { href: "copilot", label: "AI Copilot", phase: 7 },
   { href: "rules", label: "회계 규정", phase: 8 },

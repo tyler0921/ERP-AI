@@ -12,7 +12,8 @@
 | **1** | **Core Accounting** — 인증, 회사/Role, 계정과목, 거래, 전표, Audit Log | **완료** (Backend + Frontend) |
 | **2** | **Bank Reconciliation** — 은행 CSV 업로드, Match Score, 자동 제안, 승인/거절/수동 매칭/취소 ([설계](docs/phase2-bank-reconciliation.md)) | **완료** (1:1. 1:N·N:1은 데이터 모델만 준비) |
 | **3** | **Document AI** — 영수증·세금계산서 업로드(SeaweedFS), Valkey 작업 큐, PaddleOCR, 규칙 기반 필드 추출·검증, 계정과목 추천, 승인, 전표 생성 ([설계](docs/phase3-document-ai.md)) | **완료** |
-| 4~8 | 이상거래 탐지, Local LLM, 월마감 Copilot, Q&A, RAG | 예정 |
+| **4** | **Anomaly Detection** — 규칙 엔진(10개 규칙), IsolationForest(FastAPI), Risk Score·Level, 이상거래 화면·검토(확정/정상/수준 조정/다시 열기), 탐지 기준 설정 ([설계](docs/phase4-anomaly-detection.md)) | **완료** |
+| 5~8 | Local LLM, 월마감 Copilot, Q&A, RAG | 예정 |
 
 ## 구조
 
@@ -23,19 +24,22 @@
 ├─ docs/PROJECT_SPEC.md      # 전체 설계 문서
 ├─ docs/phase2-bank-reconciliation.md
 ├─ docs/phase3-document-ai.md
+├─ docs/phase4-anomaly-detection.md
 ├─ ai-service/               # FastAPI / Python 3.12 / PaddleOCR 3.7 (CPU)
 │  ├─ app/ocr/               # OCR 엔진 인터페이스, PaddleOCR 구현, 이미지·PDF 로딩, 줄 묶기
 │  ├─ app/extraction/        # 영수증·세금계산서 규칙 기반 필드 추출 (금액·날짜·사업자번호 패턴)
 │  ├─ app/classification/    # 키워드 규칙 기반 계정과목 후보
+│  ├─ app/anomaly/           # 이상탐지 ML: 특성 변환, IsolationForest(AnomalyModel 인터페이스), robust z 근거
 │  ├─ app/worker.py          # Valkey 큐 소비 → 처리 → backend 내부 API 콜백
-│  └─ scripts/make_samples.py # 가상 영수증·세금계산서 샘플 생성
+│  ├─ scripts/make_samples.py # 가상 영수증·세금계산서 샘플 생성
+│  └─ scripts/make_anomaly_sample.py # 이상거래 데모용 6개월치 가상 은행 CSV 생성
 ├─ frontend/                 # Next.js 16 (App Router) / TypeScript / Tailwind 4
 │  └─ src/
 │     ├─ proxy.ts            # 페이지 접근 가드 (세션 쿠키 없으면 /login)
 │     ├─ app/api/            # BFF: auth/login·logout, backend/[...path] 프록시
 │     ├─ app/(auth)/         # 로그인, 회원가입
 │     ├─ app/companies/      # 회사 선택·등록
-│     ├─ app/c/[companyId]/  # Dashboard, 거래, 전표, 계정과목, 은행 대사, Audit Log, 설정
+│     ├─ app/c/[companyId]/  # Dashboard, 거래, 전표, 계정과목, 은행 대사, 증빙, 이상거래, Audit Log, 설정
 │     ├─ components/         # UI 프리미티브, 회사 셸·컨텍스트
 │     └─ lib/                # API 클라이언트, 금액(BigInt) 계산, 전표 검증, 날짜(KST)
 └─ backend/                  # Spring Boot 3.3 / Java 21 / Gradle
@@ -50,7 +54,8 @@
       ├─ journal/            # 전표 + 차·대변 검증
       ├─ bank/               # 은행 계좌, CSV 파서(UTF-8/CP949), 업로드·중복 방지
       ├─ reconciliation/     # Match Score 엔진, 자동 대사, 승인/거절/수동 매칭/취소
-      └─ document/           # 증빙 업로드·검증(DocumentValidator)·추천·승인·전표 생성, SeaweedFS·Valkey 어댑터
+      ├─ document/           # 증빙 업로드·검증(DocumentValidator)·추천·승인·전표 생성, SeaweedFS·Valkey 어댑터
+      └─ anomaly/            # 이상거래: 특성(AnomalyFeatureExtractor)·규칙(AnomalyRuleEngine)·점수(RiskScorer), ML 클라이언트, 검토
 ```
 
 ## 실행
@@ -71,6 +76,7 @@ docker compose up --build
 - Health: http://localhost:8080/actuator/health
 - AI 서비스: http://localhost:8000/health, http://localhost:8000/docs (`POST /v1/extract`로 파일 하나를 바로 추출해 볼 수 있다. 저장하지 않음)
 - 샘플 파일(가상 데이터): 화면의 "샘플" 링크, 또는 `frontend/public/samples/`
+- 이상거래 데모: 은행 대사 화면에서 계좌를 만들고 `bank-statement-anomaly-sample.csv`(2026-04~09, 134행)를 올린 뒤, 이상거래 화면에서 기본 기간(최근 3개월)으로 분석을 실행한다. 쪼개기 결제·승인 기준 직전 반복·중복 결제·평균 대비 고액·주말 심야 결제 7건이 탐지된다(CRITICAL 3, HIGH 2, MEDIUM 2). 소액 반복 결제(번개퀵)는 규칙 점수가 낮아 40점 미만이라 저장되지 않는다.
 
 DB와 백엔드만 컨테이너로 띄우고 프론트엔드를 개발 모드로 실행할 수도 있다.
 
@@ -101,6 +107,9 @@ cd backend
 - `DocumentValidatorTest` — 합계 불일치, 부가세율, 사업자번호 체크섬, 공급받는자 확인, 필수값, 미래 날짜, 중복 의심, 낮은 신뢰도
 - `DocumentApiIntegrationTest` — 업로드(매직 바이트·중복·경로 제거) → AI 콜백(토큰·시도 번호·멱등) → 검증·추천 → 수정·승인·전표 생성, 과거 이력 추천, 실패·재시도·큐 장애·시간 초과, 회사 격리·VIEWER (**Docker 필요**, 저장소·큐는 메모리 구현)
 - `ReconciliationApiIntegrationTest` — 업로드·재업로드 중복 방지 → 자동 대사 → 승인/거절/재실행/수동 매칭/취소 → 현황 집계 → Audit Log → DB 안전망(이중 확정, 금액 균형), 회사 격리·VIEWER 권한 (**Docker 필요**)
+- `AnomalyRuleEngineTest` — 규칙 10개의 적중·경계(창 크기, 기준 이상/미만, 이력 부족), 배점 정렬, spec 예시 거래 CRITICAL, 평범한 거래 무적중
+- `AnomalyFeatureExtractorTest` — 거래처 이력 특성(180일 평균·90일 빈도·간격), 같은 날 순서, ML 입력 형식, Risk Score 조합·Level 경계
+- `AnomalyApiIntegrationTest` — 은행 CSV → 분석(가짜 ML) → 목록·상세·요약 → 판정·수준 조정 → 재분석 시 판정 보존 → 다시 열기 → 새 근거 시 자동 재오픈 → ML 장애 시 규칙만으로 계산·해제 → ML 끔, 거래 원천의 증빙·영수증 중복(SQL)·취소 시 해제, 권한·회사 격리, DB 제약 (**Docker 필요**)
 
 ```bash
 cd frontend
@@ -111,6 +120,7 @@ npm run lint && npm run build
 - `money.test.ts` — 금액 입력 정규화, BigInt 합산(부동소수점 오차·Number 정밀도 초과 없음), 표시 형식
 - `journal.test.ts` — 전표 폼 검증(1:N 균형, 차액, 차·대변 동시 입력, 행 번호 오류 메시지)
 - `dates.test.ts` — KST 기준 날짜, 월 범위
+- `anomaly.test.ts` — Risk Level 구간(서버와 동일), 기본 분석 기간, 기간 검증(366일), 특성 값 표시
 
 ```bash
 # ai-service (Paddle 없이 추출·분류 로직만)
@@ -122,6 +132,7 @@ docker compose run --rm -u root -v "$PWD/ai-service:/src" -w /src ai-service sh 
 - `test_patterns.py` — 금액/날짜/사업자번호 패턴, 체크섬, OCR이 공백을 빼먹는 경우, 줄 묶기
 - `test_extraction.py` — 영수증(라벨·추정), 세금계산서 표 양식(x 위치로 공급자/공급받는자 구분), 계정과목 규칙
 - `test_ocr_samples.py` — 실제 PaddleOCR로 가상 영수증 PNG·세금계산서 PDF 전체 파이프라인 (Paddle 있는 환경에서만)
+- `test_anomaly.py` — 이상치가 가장 높은 점수, robust z 근거, 같은 입력 같은 점수, 표본 부족, 결측값 대체, 계정과목 빈도 인코딩, API
 
 ## 주요 설계 결정
 
@@ -144,6 +155,11 @@ docker compose run --rm -u root -v "$PWD/ai-service:/src" -w /src ai-service sh 
 - **계정과목 추천:** 같은 거래처(사업자번호)의 과거 승인 이력(0.95)이 키워드 규칙(최대 0.85)보다 우선한다. 승인 기록에는 추천을 따랐는지(`followedRecommendation`)가 남는다.
 - **파일 보안:** 형식은 확장자가 아니라 매직 바이트로 판별하고, 저장 경로는 서버가 UUID로 만든다(worker도 경로 형식을 다시 검사). SeaweedFS는 외부에 포트를 열지 않고, 파일은 권한 확인 후 Spring이 `nosniff`로 내려준다. 같은 파일(SHA-256)은 다시 올릴 수 없다.
 - **PaddleOCR 설정:** `lang="korean"`만 주면 범용 인식 모델이 선택돼 한글을 못 읽으므로 `korean_PP-OCRv5_mobile_rec`를 명시한다. Paddle 3.3 CPU의 oneDNN 버그 때문에 `enable_mkldnn=False`.
+- **이상거래 — 규칙이 판단, ML은 보조, 사람이 판정:** Spring의 순수 클래스 `AnomalyFeatureExtractor`(거래처 빈도·평균·간격 등) → `AnomalyRuleEngine`(중복 결제·쪼개기·승인 기준 직전·평균 대비 고액·신규 거래처·영수증 중복·증빙 없음·반복·주말·심야·계정 급증) → FastAPI IsolationForest → `RiskScorer`. Risk Score = 규칙 점수 + 40 × ML 점수(최대 100)라 ML만으로는 MEDIUM까지만 오른다. 40점 이상만 저장하고, 규칙별 사유·판단 값과 ML 근거(모집단 중앙값 대비 robust z가 큰 특성)를 함께 남긴다. LLM은 쓰지 않는다.
+- **분석 대상과 모집단:** 은행 거래·거래의 출금만 분석한다. 같은 결제가 두 원천에 모두 있을 수 있어 원천별 모집단 안에서만 비교한다. 계정과목·증빙은 연결 전표(은행 거래는 확정 대사)를 따라 찾는다. 대상 기간 앞 180일을 기준선으로, 뒤 7일을 중복 결제 창으로 함께 읽는다.
+- **IsolationForest:** 저장된 모델 없이 요청마다 회사·원천 모집단으로 학습하고 `random_state`를 고정해 재현 가능하다. 표본이 30건 미만이면 건너뛰고, AI 서비스 장애·시간 초과(20초) 때는 규칙 점수만으로 계산해 `mlStatus=UNAVAILABLE`을 남긴다. Spring ↔ FastAPI는 동기 HTTP이며 모델은 `AnomalyModel` 인터페이스 뒤에 있다.
+- **재분석과 사람의 판정:** 재분석은 이상 확정·정상 처리된 결과를 덮어쓰지 않는다. 단, 판정 이후 새 규칙이 적중하면(새 근거) 다시 검토 대기로 열고 이전 판정을 `context.previousReview`에 남긴다. 기준 미만이 되거나 원천 거래가 취소되면 해제(CLEARED)된다. 분석·판정은 회사 행 잠금으로 직렬화해 동시에 실행돼도 판정이 사라지지 않는다. 판정에는 의견이 필수이고(DB CHECK), 수준 조정은 `adjusted_level`로 따로 저장해 산정값과 구분한다(`effective_level`은 DB 생성 컬럼).
+- **탐지 기준:** 승인 기준 금액·직전 비율·증빙 기준·신규 거래처 기준·평균 대비 배수·심야 시간·ML 사용은 회사별 설정(ADMIN)이며, 분석마다 그때의 설정 스냅샷을 저장한다.
 - **권한별 UI:** 쓰기 버튼은 Role에 따라 숨기지만, 실제 권한 검사는 항상 백엔드가 한다. 아직 구현되지 않은 Phase 메뉴는 사이드바에 비활성으로 표시한다.
 
 ## API 요약 (`/api/v1`)
@@ -160,9 +176,11 @@ docker compose run --rm -u root -v "$PWD/ai-service:/src" -w /src ai-service sh 
 | 증빙 | `POST·GET /companies/{cid}/documents` (multipart `file`, `docType`), `GET …/summary`, `GET …/{id}`, `GET …/{id}/file`, `PUT …/{id}/fields`, `POST …/{id}/approve·reject·retry·journal-entry` |
 | 내부(AI 서비스) | `POST /internal/v1/documents/{id}/ai-result` (`X-Internal-Token`) |
 | 은행 대사 | `GET /companies/{cid}/bank-transactions`, `GET …/{id}/candidates`, `POST /reconciliation/run`, `GET /reconciliation/summary`, `POST /reconciliation/matches`, `GET …/matches/{id}`, `POST …/{id}/confirm·reject·cancel` |
+| 이상거래 | `GET·PUT /companies/{cid}/anomaly-settings`, `POST /anomalies/scan`, `GET /anomalies/scans`, `GET /anomalies`, `GET …/summary`, `GET …/{id}`, `POST …/{id}/review·reopen` |
+| AI 서비스(FastAPI) | `POST /v1/anomaly/score` (backend가 호출, 저장 안 함) |
 | Audit Log | `GET /companies/{cid}/audit-logs` |
 
-권한: 조회는 ADMIN·ACCOUNTANT·VIEWER, 거래·전표·계정과목·은행 대사·증빙 변경은 ADMIN·ACCOUNTANT, 회사 정보와 멤버 관리는 ADMIN, Audit Log 조회는 ADMIN·ACCOUNTANT.
+권한: 조회는 ADMIN·ACCOUNTANT·VIEWER, 거래·전표·계정과목·은행 대사·증빙 변경과 이상거래 분석·판정은 ADMIN·ACCOUNTANT, 회사 정보·멤버 관리·탐지 기준 변경은 ADMIN, Audit Log 조회는 ADMIN·ACCOUNTANT.
 
 오류 응답은 항상 `{ code, message, details[], timestamp }` 형식이다. (예: `JOURNAL_NOT_BALANCED`)
 

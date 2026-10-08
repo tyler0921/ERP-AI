@@ -47,6 +47,11 @@ public final class AuditActions {
     public static final String DOC_RETRY = "DOC_RETRY";
     public static final String DOC_JOURNAL_LINK = "DOC_JOURNAL_LINK";
 
+    public static final String ANOMALY_SCAN = "ANOMALY_SCAN";
+    public static final String ANOMALY_REVIEW = "ANOMALY_REVIEW";
+    public static final String ANOMALY_REOPEN = "ANOMALY_REOPEN";
+    public static final String ANOMALY_SETTINGS_UPDATE = "ANOMALY_SETTINGS_UPDATE";
+
     public static final String TARGET_USER = "USER";
     public static final String TARGET_COMPANY = "COMPANY";
     public static final String TARGET_MEMBER = "MEMBER";
@@ -57,4 +62,7 @@ public final class AuditActions {
     public static final String TARGET_BANK_IMPORT = "BANK_IMPORT";
     public static final String TARGET_RECON_MATCH = "RECON_MATCH";
     public static final String TARGET_DOCUMENT = "DOCUMENT";
+    public static final String TARGET_ANOMALY_SCAN = "ANOMALY_SCAN";
+    public static final String TARGET_ANOMALY_RESULT = "ANOMALY_RESULT";
+    public static final String TARGET_ANOMALY_SETTINGS = "ANOMALY_SETTINGS";
 }

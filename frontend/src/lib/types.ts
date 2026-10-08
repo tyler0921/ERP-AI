@@ -332,6 +332,164 @@ export interface DocumentSummary {
   total: number;
 }
 
+// ------------------------------------------------------------ Phase 4: 이상거래 탐지
+
+export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type AnomalyStatus = "OPEN" | "CONFIRMED" | "DISMISSED" | "CLEARED";
+export type AnomalySource = "TRANSACTION" | "BANK_TRANSACTION";
+export type MlStatus = "APPLIED" | "PARTIAL" | "SKIPPED" | "UNAVAILABLE" | "DISABLED";
+
+export interface AnomalySettings {
+  approvalLimit: Money;
+  nearLimitRatio: string;
+  evidenceMinAmount: Money;
+  newVendorMinAmount: Money;
+  spikeMultiplier: string;
+  nightStartHour: number;
+  nightEndHour: number;
+  mlEnabled: boolean;
+  /** false면 저장된 설정이 없어 기본값 */
+  saved: boolean;
+  updatedBy: number | null;
+  updatedAt: string | null;
+}
+
+export interface MlSourceInfo {
+  status: MlStatus;
+  samples: number;
+  model?: string;
+  durationMs?: number;
+  message?: string;
+}
+
+export interface AnomalyScan {
+  id: number;
+  periodFrom: string;
+  periodTo: string;
+  analyzedCount: number;
+  flaggedCount: number;
+  summary: {
+    created: number;
+    updated: number;
+    cleared: number;
+    reopened: number;
+    keptReviewed: number;
+    byLevel: Record<RiskLevel, number>;
+    analyzedBySource: Record<AnomalySource, number>;
+  };
+  mlStatus: MlStatus;
+  mlInfo: Partial<Record<AnomalySource, MlSourceInfo>>;
+  settings: Record<string, string | number | boolean>;
+  durationMs: number;
+  createdBy: number;
+  createdAt: string;
+}
+
+export interface RuleHit {
+  code: string;
+  title: string;
+  weight: number;
+  message: string;
+  evidence: Record<string, unknown>;
+}
+
+export interface MlTopFeature {
+  feature: string;
+  value: number | string | null;
+  median: number | null;
+  zScore: number;
+}
+
+export interface MlDetail {
+  status: MlStatus;
+  model: string | null;
+  points: number;
+  maxPoints: number;
+  score?: number;
+  rawScore?: number;
+  topFeatures?: MlTopFeature[];
+  message?: string;
+}
+
+export interface AnomalyListItem {
+  id: number;
+  sourceType: AnomalySource;
+  sourceId: number;
+  txDate: string;
+  txTime: string | null;
+  counterparty: string | null;
+  amount: Money;
+  riskScore: number;
+  riskLevel: RiskLevel;
+  effectiveLevel: RiskLevel;
+  adjustedLevel: RiskLevel | null;
+  ruleScore: number;
+  mlScore: string | null;
+  ruleCodes: string[];
+  status: AnomalyStatus;
+  reviewedAt: string | null;
+  updatedAt: string;
+}
+
+export interface PreviousReview {
+  status: AnomalyStatus;
+  riskLevel: RiskLevel;
+  adjustedLevel: RiskLevel | null;
+  note: string | null;
+  reviewedBy: number | null;
+  reviewedAt: string | null;
+}
+
+export interface AnomalyDetail extends Omit<AnomalyListItem, "ruleCodes"> {
+  ruleHits: RuleHit[];
+  features: Record<string, string | number | null>;
+  mlDetail: MlDetail;
+  context: {
+    memo: string | null;
+    bankAccountId: number | null;
+    accountId: number | null;
+    accountCode: string | null;
+    accountName: string | null;
+    journalEntryIds: number[];
+    documentIds: number[];
+    clearedReason?: string;
+    previousReview?: PreviousReview;
+  };
+  reviewNote: string | null;
+  reviewedBy: number | null;
+  scanId: number;
+  firstDetectedAt: string;
+}
+
+export interface AnomalySummary {
+  openByLevel: Record<RiskLevel, number>;
+  open: number;
+  highRisk: number;
+  confirmed: number;
+  dismissed: number;
+  cleared: number;
+  lastScan: AnomalyScan | null;
+}
+
+export const RISK_LEVEL_LABEL: Record<RiskLevel, string> = { LOW: "낮음", MEDIUM: "중간", HIGH: "높음", CRITICAL: "심각" };
+
+export const ANOMALY_STATUS_LABEL: Record<AnomalyStatus, string> = {
+  OPEN: "검토 대기",
+  CONFIRMED: "이상 확정",
+  DISMISSED: "정상 처리",
+  CLEARED: "해제",
+};
+
+export const ANOMALY_SOURCE_LABEL: Record<AnomalySource, string> = { TRANSACTION: "거래", BANK_TRANSACTION: "은행 거래" };
+
+export const ML_STATUS_LABEL: Record<MlStatus, string> = {
+  APPLIED: "ML 반영",
+  PARTIAL: "ML 일부 반영",
+  SKIPPED: "ML 건너뜀",
+  UNAVAILABLE: "ML 사용 불가",
+  DISABLED: "ML 꺼짐",
+};
+
 export const DOC_TYPE_LABEL: Record<DocType, string> = { RECEIPT: "영수증", TAX_INVOICE: "세금계산서" };
 
 export const DOC_STATUS_LABEL: Record<DocStatus, string> = {

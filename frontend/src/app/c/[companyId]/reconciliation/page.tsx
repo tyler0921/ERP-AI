@@ -152,6 +152,9 @@ export default function ReconciliationPage() {
                 <a href="/samples/bank-statement-sample.csv" download className="text-xs text-ink-soft hover:text-ink hover:underline">
                   샘플 CSV
                 </a>
+                <a href="/samples/bank-statement-anomaly-sample.csv" download className="text-xs text-ink-soft hover:text-ink hover:underline" title="이상거래 탐지 데모용 6개월치 가상 거래내역">
+                  이상거래 데모 CSV
+                </a>
                 <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onUpload} />
                 <Button disabled={busy !== null} onClick={() => fileRef.current?.click()}>
                   {busy === "upload" ? "업로드 중…" : "거래내역 CSV 업로드"}

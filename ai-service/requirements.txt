@@ -7,6 +7,8 @@ redis==8.1.0
 pillow==12.3.0
 pypdfium2==5.13.0
 numpy<3
+# 이상탐지 ML (IsolationForest)
+scikit-learn==1.9.1
 # OCR (CPU)
 paddlepaddle==3.3.1
 paddleocr==3.7.0

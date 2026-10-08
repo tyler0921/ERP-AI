@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useApi } from "@/lib/api";
 import { monthRange, todayKst } from "@/lib/dates";
-import { DIRECTION_LABEL, type AuditLog, type JournalEntrySummary, type PageResponse, type DocumentSummary, type ReconSummary, type Transaction } from "@/lib/types";
+import { DIRECTION_LABEL, type AnomalySummary, type AuditLog, type JournalEntrySummary, type PageResponse, type DocumentSummary, type ReconSummary, type Transaction } from "@/lib/types";
 import { useCompany } from "@/components/company-context";
 import { Card, Empty, Money, PageHeader, StatusBadge, formatDateTime, td, th } from "@/components/ui";
 import { actionLabel } from "../audit-logs/labels";
@@ -37,6 +37,7 @@ export default function DashboardPage() {
   const audit = useApi<PageResponse<AuditLog>>(company.role === "VIEWER" ? null : `${base}/audit-logs`, { size: 6 });
   const recon = useApi<ReconSummary>(`${base}/reconciliation/summary`);
   const docs = useApi<DocumentSummary>(`${base}/documents/summary`);
+  const anomalies = useApi<AnomalySummary>(`${base}/anomalies/summary`);
   const rate = (v: number | null | undefined) => (v === null || v === undefined ? undefined : `${v.toFixed(1)}%`);
 
   return (
@@ -55,7 +56,18 @@ export default function DashboardPage() {
         />
         <Stat label="자동대사 성공률" value={recon.data ? (rate(recon.data.autoSuccessRate) ?? "–") : undefined} sub={recon.data ? `승인 ${recon.data.autoConfirmed} · 거절 ${recon.data.autoRejected}` : undefined} href={link("reconciliation")} />
         <Stat label="미매칭 은행 거래" value={recon.data?.unmatched} sub={recon.data ? `검토 대기 ${recon.data.suggested} · 대사율 ${rate(recon.data.matchRate) ?? "–"}` : undefined} href={link("reconciliation")} />
-        <Stat label="이상거래 / 고위험" pending="Phase 4 · Anomaly Detection" />
+        <Stat
+          label="이상거래 / 고위험"
+          value={anomalies.data ? `${anomalies.data.open} / ${anomalies.data.highRisk}` : undefined}
+          sub={
+            anomalies.data
+              ? anomalies.data.lastScan
+                ? `미검토 기준 · 심각 ${anomalies.data.openByLevel.CRITICAL} · 분석 ${anomalies.data.lastScan.periodTo}까지`
+                : "아직 분석하지 않음"
+              : undefined
+          }
+          href={link("anomalies")}
+        />
         <Stat label="월마감 진행률" pending="Phase 6 · Closing Copilot" />
       </div>
 

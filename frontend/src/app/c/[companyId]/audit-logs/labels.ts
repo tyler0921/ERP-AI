@@ -32,6 +32,10 @@ export const ACTION_LABEL: Record<string, string> = {
   DOC_REJECT: "증빙 거절",
   DOC_RETRY: "AI 재처리",
   DOC_JOURNAL_LINK: "증빙 전표 생성",
+  ANOMALY_SCAN: "이상거래 분석",
+  ANOMALY_REVIEW: "이상거래 판정",
+  ANOMALY_REOPEN: "이상거래 판정 취소",
+  ANOMALY_SETTINGS_UPDATE: "탐지 기준 변경",
 };
 
 export const TARGET_LABEL: Record<string, string> = {
@@ -45,6 +49,9 @@ export const TARGET_LABEL: Record<string, string> = {
   BANK_IMPORT: "업로드",
   RECON_MATCH: "대사 매칭",
   DOCUMENT: "증빙",
+  ANOMALY_SCAN: "이상거래 분석",
+  ANOMALY_RESULT: "이상거래",
+  ANOMALY_SETTINGS: "탐지 기준",
 };
 
 export function actionLabel(action: string): string {

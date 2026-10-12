@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useApi } from "@/lib/api";
+import { defaultClosingMonth, monthLabel } from "@/lib/closing";
 import { monthRange, todayKst } from "@/lib/dates";
-import { DIRECTION_LABEL, type AnomalySummary, type AuditLog, type JournalEntrySummary, type PageResponse, type DocumentSummary, type ReconSummary, type Transaction } from "@/lib/types";
+import { DIRECTION_LABEL, type AnomalySummary, type ClosingReport, type AuditLog, type JournalEntrySummary, type PageResponse, type DocumentSummary, type ReconSummary, type Transaction } from "@/lib/types";
 import { useCompany } from "@/components/company-context";
 import { Card, Empty, Money, PageHeader, StatusBadge, formatDateTime, td, th } from "@/components/ui";
 import { actionLabel } from "../audit-logs/labels";
@@ -38,6 +39,9 @@ export default function DashboardPage() {
   const recon = useApi<ReconSummary>(`${base}/reconciliation/summary`);
   const docs = useApi<DocumentSummary>(`${base}/documents/summary`);
   const anomalies = useApi<AnomalySummary>(`${base}/anomalies/summary`);
+  // 마감 대상은 지난 달
+  const closingMonth = defaultClosingMonth();
+  const closing = useApi<ClosingReport>(`${base}/closing/${closingMonth}`);
   const rate = (v: number | null | undefined) => (v === null || v === undefined ? undefined : `${v.toFixed(1)}%`);
 
   return (
@@ -68,7 +72,18 @@ export default function DashboardPage() {
           }
           href={link("anomalies")}
         />
-        <Stat label="월마감 진행률" pending="Phase 6 · Closing Copilot" />
+        <Stat
+          label={`월마감 진행률 (${monthLabel(closingMonth)})`}
+          value={closing.data ? `${closing.data.progress.percent}%` : undefined}
+          sub={
+            closing.data
+              ? closing.data.closing.status === "CLOSED"
+                ? `마감 확정${closing.data.closing.changedSinceClose ? " · 확정 이후 변경됨" : ""}`
+                : `체크리스트 ${closing.data.progress.done}/${closing.data.progress.total} · 마감 전`
+              : undefined
+          }
+          href={link(`closing?month=${closingMonth}`)}
+        />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">

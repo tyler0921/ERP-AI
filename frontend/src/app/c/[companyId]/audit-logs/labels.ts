@@ -38,6 +38,10 @@ export const ACTION_LABEL: Record<string, string> = {
   ANOMALY_SETTINGS_UPDATE: "탐지 기준 변경",
   ANOMALY_EXPLANATION_EDIT: "AI 설명 수정",
   ANOMALY_EXPLANATION_REGENERATE: "AI 설명 다시 생성",
+  CLOSING_CLOSE: "월마감 확정",
+  CLOSING_REOPEN: "월마감 취소",
+  CLOSING_EXPLANATION_EDIT: "월마감 설명 수정",
+  CLOSING_EXPLANATION_REGENERATE: "월마감 설명 다시 생성",
 };
 
 export const TARGET_LABEL: Record<string, string> = {
@@ -54,6 +58,7 @@ export const TARGET_LABEL: Record<string, string> = {
   ANOMALY_SCAN: "이상거래 분석",
   ANOMALY_RESULT: "이상거래",
   ANOMALY_SETTINGS: "탐지 기준",
+  CLOSING_MONTH: "월마감",
 };
 
 export function actionLabel(action: string): string {

@@ -568,3 +568,95 @@ export const DIRECTION_LABEL: Record<Direction, string> = {
 export function canWrite(role: Role | undefined): boolean {
   return role === "ADMIN" || role === "ACCOUNTANT";
 }
+
+// ------------------------------------------------------------ Phase 6: 월마감
+
+/** 비교 한 쌍. text 예: "21,000,000원 증가 (+700.0%)". pct는 비교값이 0이면 null */
+export interface ClosingChange {
+  diff: string;
+  pct: string | null;
+  text: string;
+}
+
+export interface ClosingLine {
+  kind: "TOTAL" | "ACCOUNT" | "VENDOR";
+  key: string;
+  label: string;
+  type: string;
+  current: string;
+  prevMonth: string;
+  prevYear: string;
+  vsPrevMonth: ClosingChange;
+  vsPrevYear: ClosingChange;
+}
+
+export type VarianceCode = "INCREASE" | "DECREASE" | "NEW" | "GONE";
+export type VarianceBasis = "PREV_MONTH" | "PREV_YEAR";
+
+export interface ClosingVariance {
+  kind: ClosingLine["kind"];
+  key: string;
+  label: string;
+  basis: VarianceBasis;
+  code: VarianceCode;
+  current: string;
+  base: string;
+  diff: string;
+  pct: string | null;
+  message: string;
+}
+
+export interface ClosingChecklistItem {
+  code: string;
+  title: string;
+  done: boolean;
+  remaining: number;
+  detail: string;
+  /** 회사 화면 경로 (예: "documents") */
+  href: string;
+}
+
+export type ClosingStatus = "OPEN" | "CLOSED";
+
+export interface ClosingReport {
+  month: string;
+  prevMonth: string;
+  prevYearMonth: string;
+  totals: ClosingLine[];
+  accounts: ClosingLine[];
+  vendors: ClosingLine[];
+  variances: ClosingVariance[];
+  anomalies: { open: number; highRisk: number; confirmed: number; dismissed: number };
+  checklist: ClosingChecklistItem[];
+  progress: { done: number; total: number; percent: number };
+  closing: {
+    id: number | null;
+    status: ClosingStatus;
+    closedBy: number | null;
+    closedAt: string | null;
+    note: string | null;
+    changedSinceClose: boolean;
+    snapshot: { totals?: Record<string, string>; checklist?: { code: string; title: string; done: boolean; remaining: number }[] } | null;
+  };
+  explanation: Explanation | null;
+}
+
+export interface ClosingTrendPoint {
+  month: string;
+  revenue: string;
+  expense: string;
+  operatingProfit: string;
+  status: ClosingStatus;
+}
+
+export const VARIANCE_CODE_LABEL: Record<VarianceCode, string> = {
+  INCREASE: "증가",
+  DECREASE: "감소",
+  NEW: "신규",
+  GONE: "소멸",
+};
+
+export const VARIANCE_BASIS_LABEL: Record<VarianceBasis, string> = {
+  PREV_MONTH: "전월",
+  PREV_YEAR: "전년 동월",
+};

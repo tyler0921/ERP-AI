@@ -1,4 +1,4 @@
-"""이상거래·분석 요약 설명: 프롬프트 → LLM → 출력 검증 → (실패 시) 템플릿 설명.
+"""이상거래·분석 요약·월마감 설명: 프롬프트 → LLM → 출력 검증 → (실패 시) 템플릿 설명.
 
 LLM은 Spring이 계산해 보낸 근거 데이터(facts)를 문장으로 옮기기만 한다.
 근거에 없는 숫자, 단정적인 판정 표현, 외국 문자 섞임은 규칙으로 걸러내고, 그때는 규칙 근거로 만든 템플릿 설명을 쓴다.
@@ -13,7 +13,7 @@ from typing import Any, Iterable
 
 from app.llm.provider import LlmError, LlmProvider
 
-PROMPT_VERSION = {"ANOMALY_RESULT": "anomaly-v2", "ANOMALY_SCAN": "scan-v2"}
+PROMPT_VERSION = {"ANOMALY_RESULT": "anomaly-v2", "ANOMALY_SCAN": "scan-v2", "CLOSING_MONTH": "closing-v1"}
 TARGET_TYPES = tuple(PROMPT_VERSION)
 
 SCHEMA = {
@@ -51,6 +51,15 @@ SYSTEM = {
     "이번 이상거래 분석 결과를 요약한다.\n\n" + _COMMON_RULES + """
 - explanation: 3~5문장. 탐지 건수와 위험 수준별 건수, 가장 많이 걸린 근거, 위험도가 가장 높은 거래를 언급한다.
 - checkpoints: 우선 할 일 1~3개. '~확인', '~수취'처럼 행동으로 끝나는 짧은 구절.""",
+    "CLOSING_MONTH": "너는 월마감 담당자를 돕는 회계 보조원이다. 사용자가 주는 '근거 데이터'만 사용해, "
+    "이번 달 손익이 왜 이렇게 나왔는지와 마감 전에 남은 일을 요약한다.\n\n" + """반드시 지킬 것:
+- 근거 데이터에 없는 사실이나 숫자를 만들지 않는다. 숫자를 새로 계산하지 않는다(합계·차이·비율 계산 금지). 금액·증감률은 근거 데이터의 표기 그대로 쓴다.
+- '전월 대비', '전년 동월 대비', '주요 변동'의 '내용'은 이미 계산된 사실이다. 증가·감소 방향과 비교 기준(전월, 전년 동월)을 바꾸지 말고 그대로 옮긴다.
+- 변동의 원인을 추측하지 않는다. 원인은 '확인이 필요합니다'처럼 쓴다. '분식', '횡령', '오류' 같은 단정적인 표현을 쓰지 않는다.
+- 한국어로만 쓴다. 한자나 영어 문장을 섞지 않는다. 영문 대문자 코드는 쓰지 않는다.
+- JSON으로만 답한다.
+- explanation: 3~5문장. 매출·비용·영업이익의 당월 금액과 전월 대비 변동, 주요 변동 상위 2~3개, 검토 대기 이상거래(있으면), 마감 체크리스트 진행률과 남은 항목 순서로 쓴다.
+- checkpoints: 마감 전에 할 일 1~3개. 남은 체크리스트 항목과 큰 변동의 사유 확인을 '~확인', '~처리'처럼 행동으로 끝나는 짧은 구절로 쓴다.""",
 }
 
 # 템플릿 설명의 확인 사항 (규칙 코드별)
@@ -145,9 +154,60 @@ def validate(explanation: str, checkpoints: list[str], facts: dict) -> list[dict
         issues.append({"code": "VERDICT_LANGUAGE", "message": f"단정적인 판정 표현: {', '.join(verdict)}"})
     if _EXCEEDS.search(whole) and not _EXCEEDS.search(json.dumps(facts, ensure_ascii=False)):
         issues.append({"code": "COMPARISON_CONFLICT", "message": "근거에 없는 \"기준 초과\" 주장이 있습니다."})
+    conflicts = direction_conflicts(text, facts)
+    if conflicts:
+        issues.append({"code": "DIRECTION_CONFLICT", "message": f"근거와 반대인 증감 방향: {', '.join(conflicts[:3])}"})
     if _FOREIGN.search(whole) or not _HANGUL.search(text):
         issues.append({"code": "LANGUAGE", "message": "한국어가 아니거나 한자·외국 문자가 섞였습니다."})
     return issues
+
+
+# 손익 합계 이름. "상품매출"처럼 다른 낱말 안에 든 것은 제외한다
+_TOTAL_LABEL = re.compile(r"(?<![가-힣])(매출|비용|영업이익)")
+# 문장 끝. "66.7%"처럼 숫자 사이의 점은 끊지 않는다
+_SENTENCE_END = re.compile(r"(?<!\d)\.|\.(?!\d)|[!?\n]")
+
+
+def _direction(text: Any) -> str | None:
+    s = str(text or "")
+    if "증가" in s:
+        return "증가"
+    if "감소" in s:
+        return "감소"
+    return None
+
+
+def direction_conflicts(text: str, facts: dict) -> list[str]:
+    """월마감 설명에서 매출·비용·영업이익의 증감 방향을 근거와 반대로 쓴 곳.
+
+    문장을 합계 이름이 나올 때마다 끊어, 한 조각 안에 비교 기준(전월 또는 전년)이 하나만 있고
+    근거와 반대 방향 낱말만 있으면 충돌로 본다. 애매하면 통과시킨다.
+    """
+    summary = facts.get("손익 요약")
+    if not isinstance(summary, list):
+        return []
+    expected: dict[str, dict[str, str | None]] = {}
+    for item in summary:
+        if isinstance(item, dict) and item.get("항목"):
+            expected[str(item["항목"])] = {"전월": _direction(item.get("전월 대비")),
+                                         "전년": _direction(item.get("전년 동월 대비"))}
+    conflicts: list[str] = []
+    for sentence in _SENTENCE_END.split(text):
+        labels = list(_TOTAL_LABEL.finditer(sentence))
+        for i, m in enumerate(labels):
+            end = labels[i + 1].start() if i + 1 < len(labels) else len(sentence)
+            chunk = sentence[m.start():end]
+            has_prev_month = "전월" in chunk
+            if has_prev_month == ("전년" in chunk):
+                continue
+            basis = "전월" if has_prev_month else "전년"
+            want = expected.get(m.group(1), {}).get(basis)
+            if want is None:
+                continue
+            opposite = "감소" if want == "증가" else "증가"
+            if opposite in chunk and want not in chunk:
+                conflicts.append(f"{m.group(1)} {basis} 대비 {opposite}")
+    return conflicts
 
 
 # ------------------------------------------------------------------ 템플릿 설명
@@ -178,6 +238,9 @@ def fallback(target_type: str, facts: dict) -> tuple[str, list[str]]:
         checkpoints = [f"{t.get('거래처')} {t.get('출금액')} 출금 확인 (위험도 {t.get('위험도 점수')}점)" for t in top[:3]]
         return text, checkpoints
 
+    if target_type == "CLOSING_MONTH":
+        return _closing_fallback(facts)
+
     tx = _get(facts, "거래", default={}) or {}
     risk = _get(facts, "위험도", default={}) or {}
     rules = _get(facts, "규칙 근거", default=[]) or []
@@ -193,6 +256,43 @@ def fallback(target_type: str, facts: dict) -> tuple[str, list[str]]:
         text += f" ML 이상 점수는 {ml_score}입니다."
     checkpoints = [CHECKPOINT_BY_RULE[r["코드"]] for r in rules if r.get("코드") in CHECKPOINT_BY_RULE][:3]
     return text, checkpoints
+
+
+def _closing_fallback(facts: dict) -> tuple[str, list[str]]:
+    """월마감 템플릿: 손익 요약 → 주요 변동 상위 3개 → 이상거래 → 체크리스트. 근거 문장을 그대로 옮긴다."""
+    month = _get(facts, "기준월", default="당월")
+    parts = []
+    for item in _get(facts, "손익 요약", default=[]) or []:
+        # 매출·비용·영업이익 모두 받침으로 끝난다
+        parts.append(f"{item.get('항목')}은 {item.get('당월')}(전월 대비 {item.get('전월 대비')})")
+    sentences = [f"{month} " + ", ".join(parts) + "입니다." if parts else f"{month} 손익 집계입니다."]
+
+    changes = _get(facts, "주요 변동", default=[]) or []
+    if changes:
+        sentences.append("주요 변동은 " + "; ".join(str(c.get("내용")) for c in changes[:3]) + "입니다.")
+    else:
+        sentences.append("탐지 기준에 해당하는 주요 변동은 없습니다.")
+
+    open_count = _get(facts, "이상거래 현황", "검토 대기", default=0) or 0
+    if open_count:
+        high = _get(facts, "이상거래 현황", "검토 대기 중 고위험(높음 이상)", default=0) or 0
+        sentences.append(f"검토 대기 이상거래가 {open_count}건(고위험 {high}건) 있습니다.")
+
+    progress = _get(facts, "마감 체크리스트", "진행률", default="")
+    remaining = _get(facts, "마감 체크리스트", "남은 항목", default=[]) or []
+    if remaining:
+        sentences.append(f"마감 체크리스트는 {progress}이며 남은 항목은 {', '.join(remaining)}입니다.")
+    elif progress:
+        sentences.append(f"마감 체크리스트는 {progress}입니다.")
+
+    checkpoints = [f"{r} 처리" for r in remaining[:2]]
+    for c in changes:
+        if len(checkpoints) >= 3:
+            break
+        item = f"{c.get('항목')} 변동 사유 확인"
+        if item not in checkpoints:
+            checkpoints.append(item)
+    return " ".join(sentences), checkpoints[:3]
 
 
 # ------------------------------------------------------------------ 생성

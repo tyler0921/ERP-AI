@@ -114,8 +114,8 @@ def test_변동과_남은_항목이_없는_달의_템플릿():
 
 def test_worker가_월마감_작업을_처리한다():
     job = {"explanationId": 11, "companyId": 3, "attempt": 1, "targetType": "CLOSING_MONTH", "facts": FACTS}
-    explanation_id, payload = handle_job(json.dumps(job, ensure_ascii=False), FakeProvider(error=LlmError("down")))
-    assert explanation_id == 11
+    path, payload = handle_job(json.dumps(job, ensure_ascii=False), FakeProvider(error=LlmError("down")))
+    assert path == "/internal/v1/explanations/11/result"
     assert payload["success"] is True and payload["status"] == "FALLBACK"
     assert payload["meta"]["promptVersion"] == "closing-v1"
     assert payload["text"].startswith("2026-09 매출은")

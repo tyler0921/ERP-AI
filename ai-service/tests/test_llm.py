@@ -153,8 +153,8 @@ def test_분석_요약_템플릿():
 
 def test_worker_메시지_처리():
     job = {"explanationId": 7, "companyId": 1, "attempt": 2, "targetType": "ANOMALY_SCAN", "facts": SCAN_FACTS}
-    explanation_id, payload = handle_job(json.dumps(job, ensure_ascii=False), FakeProvider(error=LlmError("down")))
-    assert explanation_id == 7
+    path, payload = handle_job(json.dumps(job, ensure_ascii=False), FakeProvider(error=LlmError("down")))
+    assert path == "/internal/v1/explanations/7/result"
     assert payload["attempt"] == 2 and payload["success"] is True and payload["status"] == "FALLBACK"
     assert payload["meta"]["promptVersion"] == "scan-v2"
 

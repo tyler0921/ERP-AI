@@ -660,3 +660,72 @@ export const VARIANCE_BASIS_LABEL: Record<VarianceBasis, string> = {
   PREV_MONTH: "전월",
   PREV_YEAR: "전년 동월",
 };
+
+// ------------------------------------------------------------ Phase 7: AI Copilot
+
+export type CopilotStatus = "PLANNING" | "ANSWERED" | "UNSUPPORTED" | "FAILED";
+export type PlanSource = "LLM" | "RULE" | "USER";
+
+/** 질의 계획. LLM·규칙 Planner·사람이 낸 것을 백엔드가 검증한 형태 */
+export interface CopilotPlan {
+  tool: CopilotTool;
+  period?: { type: PeriodType; year?: number; month?: number; quarter?: number };
+  compare?: "PREV_PERIOD" | "PREV_YEAR";
+  account?: string;
+  order?: "AMOUNT" | "INCREASE" | "DECREASE";
+  minLevel?: RiskLevel;
+  status?: "OPEN" | "ALL";
+  limit?: number;
+  reason?: string;
+}
+
+export type CopilotTool = "PROFIT_SUMMARY" | "ACCOUNT_SUMMARY" | "VENDOR_RANKING" | "ANOMALY_LIST" | "CLOSING_STATUS" | "UNSUPPORTED";
+export type PeriodType = "THIS_MONTH" | "LAST_MONTH" | "MONTH" | "THIS_QUARTER" | "LAST_QUARTER" | "QUARTER" | "THIS_YEAR" | "LAST_YEAR" | "YEAR";
+
+export type CopilotValueType = "money" | "pct" | "number" | "text";
+
+export interface CopilotResult {
+  tool: CopilotTool;
+  title: string;
+  period: string | null;
+  comparePeriod: string | null;
+  highlights: { label: string; value: string | null; type: CopilotValueType }[];
+  tables: {
+    title: string;
+    columns: { key: string; label: string; type: CopilotValueType }[];
+    rows: Record<string, string | number | null>[];
+  }[];
+  summary: string[];
+  directions: { item: string; direction: "증가" | "감소" }[];
+}
+
+export interface CopilotQuestion {
+  id: number;
+  question: string;
+  status: CopilotStatus;
+  attempt: number;
+  plan: CopilotPlan | null;
+  planSource: PlanSource | null;
+  planMeta: {
+    model?: string;
+    promptVersion?: string;
+    durationMs?: number;
+    llmError?: string;
+    llmIssues?: string[];
+    planIssues?: string[];
+  };
+  result: CopilotResult | null;
+  error: string | null;
+  createdAt: string;
+  plannedAt: string | null;
+  answer: Explanation | null;
+}
+
+export interface CopilotQuestionSummary {
+  id: number;
+  question: string;
+  status: CopilotStatus;
+  tool: string | null;
+  period: string | null;
+  createdAt: string;
+}

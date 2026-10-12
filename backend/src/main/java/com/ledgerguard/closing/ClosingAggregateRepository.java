@@ -50,6 +50,7 @@ public class ClosingAggregateRepository {
                     ORDER BY bt.id LIMIT 1) b ON TRUE
              WHERE e.company_id = :companyId AND e.status <> 'VOID' AND a.type = 'EXPENSE'
                AND e.entry_date BETWEEN :from AND :to
+               AND (CAST(:accountId AS BIGINT) IS NULL OR a.id = :accountId)
              GROUP BY 1
             """;
 
@@ -105,7 +106,14 @@ public class ClosingAggregateRepository {
     }
 
     public List<VendorAmount> vendorExpenses(Long companyId, YearMonth month) {
-        return jdbc.query(VENDOR_EXPENSES, params(companyId, month.atDay(1), month.atEndOfMonth()),
+        return vendorExpenses(companyId, month, month, null);
+    }
+
+    /** 기간(월 범위)의 거래처별 비용. accountId가 있으면 그 비용 계정만 */
+    public List<VendorAmount> vendorExpenses(Long companyId, YearMonth from, YearMonth to, Long accountId) {
+        Map<String, Object> p = params(companyId, from.atDay(1), to.atEndOfMonth());
+        p.put("accountId", accountId);
+        return jdbc.query(VENDOR_EXPENSES, p,
                 (rs, i) -> new VendorAmount(rs.getString("vendor"), rs.getBigDecimal("amount")));
     }
 

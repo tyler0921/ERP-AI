@@ -85,6 +85,16 @@ public class ExplanationService {
         return enqueue(e, companyId, type, targetId, input, hash(input));
     }
 
+    /**
+     * 근거 자체가 바뀌어 새 설명이 필요할 때 (예: 사람이 Copilot 해석을 고침). 생성 중이어도 새 시도로 바꾸며,
+     * 이전 시도의 결과는 시도 번호가 달라 반영되지 않는다.
+     */
+    @Transactional
+    public AiExplanation replace(Long companyId, TargetType type, Long targetId, Map<String, Object> facts) {
+        AiExplanation e = explanations.findByTargetTypeAndTargetId(type, targetId).orElse(null);
+        return enqueue(e, companyId, type, targetId, facts, hash(facts));
+    }
+
     private AiExplanation enqueue(AiExplanation e, Long companyId, TargetType type, Long targetId,
                                   Map<String, Object> facts, String hash) {
         if (e == null) {

@@ -15,32 +15,47 @@ import httpx
 import redis
 
 from app.config import settings
+from app.copilot.planner import make_plan
 from app.llm.explain import TARGET_TYPES, explain
 from app.llm.provider import LlmError, LlmProvider
 
 log = logging.getLogger("ledgerguard.llm.worker")
 
 
-def handle_job(raw: bytes | str, provider: LlmProvider) -> tuple[int, dict] | None:
-    """작업 메시지 → (설명 ID, 콜백 본문). 잘못된 메시지는 None."""
+PLAN_TARGET = "COPILOT_PLAN"
+
+
+def handle_job(raw: bytes | str, provider: LlmProvider) -> tuple[str, dict] | None:
+    """작업 메시지 → (콜백 경로, 본문). 잘못된 메시지는 None.
+
+    설명 작업은 /internal/v1/explanations/{id}/result, Copilot 계획 작업(COPILOT_PLAN)은
+    /internal/v1/copilot/questions/{id}/plan으로 보낸다.
+    """
     try:
         job = json.loads(raw)
         explanation_id = int(job["explanationId"])
         attempt = int(job["attempt"])
         target_type = str(job["targetType"])
         facts = job["facts"]
-        if target_type not in TARGET_TYPES or not isinstance(facts, dict):
+        if (target_type not in TARGET_TYPES and target_type != PLAN_TARGET) or not isinstance(facts, dict):
             raise ValueError(target_type)
     except (ValueError, KeyError, TypeError):
         log.error("잘못된 LLM 작업 메시지를 버립니다: %r", raw[:200])
         return None
+    if target_type == PLAN_TARGET:
+        path = f"/internal/v1/copilot/questions/{explanation_id}/plan"
+    else:
+        path = f"/internal/v1/explanations/{explanation_id}/result"
     try:
-        result = explain(target_type, facts, provider)
+        if target_type == PLAN_TARGET:
+            result = make_plan(facts, provider)
+        else:
+            result = explain(target_type, facts, provider)
         payload = {"attempt": attempt, "success": True, **result}
-    except Exception as e:  # noqa: BLE001 — 어떤 실패든 Spring에 알려 사람이 다시 생성할 수 있게 한다
-        log.exception("설명 %s 생성 실패", explanation_id)
+    except Exception as e:  # noqa: BLE001 — 어떤 실패든 Spring에 알려 사람이 다시 시도할 수 있게 한다
+        log.exception("LLM 작업 %s(%s) 실패", explanation_id, target_type)
         payload = {"attempt": attempt, "success": False, "error": f"{type(e).__name__}: {e}"[:500]}
-    return explanation_id, payload
+    return path, payload
 
 
 class LlmWorker:
@@ -78,8 +93,8 @@ class LlmWorker:
             if handled is not None:
                 self._callback(*handled)
 
-    def _callback(self, explanation_id: int, payload: dict) -> None:
-        url = f"{settings.backend_url}/internal/v1/explanations/{explanation_id}/result"
+    def _callback(self, path: str, payload: dict) -> None:
+        url = f"{settings.backend_url}{path}"
         headers = {"X-Internal-Token": settings.internal_token}
         for attempt in range(3):
             try:
@@ -87,9 +102,9 @@ class LlmWorker:
                     res = http.post(url, json=payload, headers=headers)
                 if res.status_code < 500:
                     if res.status_code >= 400:
-                        log.warning("콜백 거부 (설명 %s): %s %s", explanation_id, res.status_code, res.text[:200])
+                        log.warning("콜백 거부 (%s): %s %s", path, res.status_code, res.text[:200])
                     return
             except httpx.HTTPError as e:
-                log.warning("콜백 실패 (설명 %s, %d회): %s", explanation_id, attempt + 1, e)
+                log.warning("콜백 실패 (%s, %d회): %s", path, attempt + 1, e)
             time.sleep(2 ** attempt)
-        log.error("콜백을 포기합니다 (설명 %s). Spring의 시간 초과 처리로 넘어갑니다.", explanation_id)
+        log.error("콜백을 포기합니다 (%s). Spring의 시간 초과 처리로 넘어갑니다.", path)

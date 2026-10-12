@@ -59,6 +59,11 @@ public final class AuditActions {
     public static final String CLOSING_EXPLANATION_EDIT = "CLOSING_EXPLANATION_EDIT";
     public static final String CLOSING_EXPLANATION_REGENERATE = "CLOSING_EXPLANATION_REGENERATE";
 
+    public static final String COPILOT_ASK = "COPILOT_ASK";
+    public static final String COPILOT_PLAN_EDIT = "COPILOT_PLAN_EDIT";
+    public static final String COPILOT_ANSWER_EDIT = "COPILOT_ANSWER_EDIT";
+    public static final String COPILOT_ANSWER_REGENERATE = "COPILOT_ANSWER_REGENERATE";
+
     public static final String TARGET_USER = "USER";
     public static final String TARGET_COMPANY = "COMPANY";
     public static final String TARGET_MEMBER = "MEMBER";
@@ -73,4 +78,5 @@ public final class AuditActions {
     public static final String TARGET_ANOMALY_RESULT = "ANOMALY_RESULT";
     public static final String TARGET_ANOMALY_SETTINGS = "ANOMALY_SETTINGS";
     public static final String TARGET_CLOSING_MONTH = "CLOSING_MONTH";
+    public static final String TARGET_COPILOT_QUESTION = "COPILOT_QUESTION";
 }

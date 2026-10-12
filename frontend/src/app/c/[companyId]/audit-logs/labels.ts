@@ -42,6 +42,10 @@ export const ACTION_LABEL: Record<string, string> = {
   CLOSING_REOPEN: "월마감 취소",
   CLOSING_EXPLANATION_EDIT: "월마감 설명 수정",
   CLOSING_EXPLANATION_REGENERATE: "월마감 설명 다시 생성",
+  COPILOT_ASK: "AI Copilot 질문",
+  COPILOT_PLAN_EDIT: "AI Copilot 해석 수정",
+  COPILOT_ANSWER_EDIT: "AI Copilot 답변 수정",
+  COPILOT_ANSWER_REGENERATE: "AI Copilot 답변 다시 생성",
 };
 
 export const TARGET_LABEL: Record<string, string> = {
@@ -59,6 +63,7 @@ export const TARGET_LABEL: Record<string, string> = {
   ANOMALY_RESULT: "이상거래",
   ANOMALY_SETTINGS: "탐지 기준",
   CLOSING_MONTH: "월마감",
+  COPILOT_QUESTION: "AI Copilot 질문",
 };
 
 export function actionLabel(action: string): string {

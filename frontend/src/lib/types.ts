@@ -729,3 +729,67 @@ export interface CopilotQuestionSummary {
   period: string | null;
   createdAt: string;
 }
+
+// ------------------------------------------------------------ Phase 8: 회계 규정 RAG
+
+export type RuleCategory = "EXPENSE_POLICY" | "CORPORATE_CARD" | "ACCOUNT_GUIDE" | "CASE" | "APPROVAL" | "OTHER";
+export type RuleDocumentStatus = "PENDING" | "INDEXED" | "FAILED" | "ARCHIVED";
+
+export interface RuleDocument {
+  id: number;
+  title: string;
+  category: RuleCategory;
+  status: RuleDocumentStatus;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  chunkCount: number;
+  charCount: number;
+  embeddingModel: string | null;
+  error: string | null;
+  attempt: number;
+  uploadedBy: number;
+  createdAt: string;
+  indexedAt: string | null;
+  archivedBy: number | null;
+  archivedAt: string | null;
+  archiveReason: string | null;
+}
+
+export interface RuleChunk {
+  id: number;
+  section: string | null;
+  page: number | null;
+  content: string;
+}
+
+/** 질문 시점의 검색 결과. 번호(순서 + 1)가 답변의 [번호] 인용과 같다 */
+export interface RuleSource {
+  chunkId: number;
+  documentId: number;
+  title: string;
+  category: RuleCategory;
+  section: string | null;
+  page: number | null;
+  content: string;
+  score: number;
+}
+
+export interface RuleQuestion {
+  id: number;
+  question: string;
+  status: "ANSWERED" | "NO_MATCH";
+  retrievalMode: "VECTOR" | "KEYWORD";
+  retrievalMeta: { reason?: string; embeddingError?: string; terms?: string[]; bestScore?: number | null; minScore?: number; model?: string };
+  sources: RuleSource[];
+  createdAt: string;
+  answer: Explanation | null;
+}
+
+export interface RuleQuestionSummary {
+  id: number;
+  question: string;
+  status: RuleQuestion["status"];
+  sourceCount: number;
+  createdAt: string;
+}

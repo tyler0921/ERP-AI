@@ -37,7 +37,9 @@ public class AiExplanation {
         /** 월마감 보고서 (Phase 6) */
         CLOSING_MONTH,
         /** AI Copilot 질문의 답변 (Phase 7) */
-        COPILOT_ANSWER
+        COPILOT_ANSWER,
+        /** 회계 규정 질문의 답변 (Phase 8) */
+        RULE_ANSWER
     }
 
     public enum Status {

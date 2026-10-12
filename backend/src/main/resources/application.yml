@@ -43,6 +43,7 @@ app:
   queue:
     ocr-key: ledgerguard:ocr:jobs
     llm-key: ledgerguard:llm:jobs
+    rag-key: ledgerguard:rag:jobs
   documents:
     ocr-timeout-minutes: ${OCR_TIMEOUT_MINUTES:15}
   # FastAPI AI 서비스 (이상탐지 ML 점수). 실패하면 규칙 점수만 사용한다.
@@ -54,6 +55,16 @@ app:
   # Phase 5 LLM 설명. 큐에 쌓인 뒤 이 시간 안에 결과가 오지 않으면 FAILED (다시 생성 가능)
   llm:
     timeout-minutes: ${LLM_TIMEOUT_MINUTES:30}
+  # Phase 8 회계 규정 RAG. 임베딩 모델(intfloat/multilingual-e5-small)의 차원과 맞아야 한다
+  rag:
+    embedding-dims: 384
+    embed-timeout-ms: ${RAG_EMBED_TIMEOUT_MS:10000}
+    top-k: 5
+    # e5 모델은 유사도가 좁은 범위(관련 0.84~0.91, 무관 0.81~0.85, 가상 규정 기준)에 몰린다.
+    # 이 값보다 낮은 발췌는 버리고(전부 낮으면 LLM을 부르지 않음), 1위보다 relative-margin 넘게 낮은 발췌도 근거에서 뺀다.
+    min-score: ${RAG_MIN_SCORE:0.83}
+    relative-margin: ${RAG_RELATIVE_MARGIN:0.06}
+    index-timeout-minutes: ${RAG_INDEX_TIMEOUT_MINUTES:30}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
   jwt:

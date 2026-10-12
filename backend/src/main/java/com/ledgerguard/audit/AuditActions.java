@@ -64,6 +64,15 @@ public final class AuditActions {
     public static final String COPILOT_ANSWER_EDIT = "COPILOT_ANSWER_EDIT";
     public static final String COPILOT_ANSWER_REGENERATE = "COPILOT_ANSWER_REGENERATE";
 
+    public static final String RULE_DOC_UPLOAD = "RULE_DOC_UPLOAD";
+    public static final String RULE_DOC_INDEXED = "RULE_DOC_INDEXED";
+    public static final String RULE_DOC_FAILED = "RULE_DOC_FAILED";
+    public static final String RULE_DOC_REINDEX = "RULE_DOC_REINDEX";
+    public static final String RULE_DOC_ARCHIVE = "RULE_DOC_ARCHIVE";
+    public static final String RULE_ASK = "RULE_ASK";
+    public static final String RULE_ANSWER_EDIT = "RULE_ANSWER_EDIT";
+    public static final String RULE_ANSWER_REGENERATE = "RULE_ANSWER_REGENERATE";
+
     public static final String TARGET_USER = "USER";
     public static final String TARGET_COMPANY = "COMPANY";
     public static final String TARGET_MEMBER = "MEMBER";
@@ -79,4 +88,6 @@ public final class AuditActions {
     public static final String TARGET_ANOMALY_SETTINGS = "ANOMALY_SETTINGS";
     public static final String TARGET_CLOSING_MONTH = "CLOSING_MONTH";
     public static final String TARGET_COPILOT_QUESTION = "COPILOT_QUESTION";
+    public static final String TARGET_RULE_DOCUMENT = "RULE_DOCUMENT";
+    public static final String TARGET_RULE_QUESTION = "RULE_QUESTION";
 }

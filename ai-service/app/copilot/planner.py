@@ -12,7 +12,9 @@ from typing import Any
 
 from app.llm.provider import LlmError, LlmProvider
 
-PROMPT_VERSION = "plan-v1"
+PROMPT_VERSION = "plan-v2"
+
+RULES_REASON = "회사 규정·정책에 관한 질문은 '회계 규정' 메뉴에서 물어보세요. 등록된 규정 원문을 근거로 답합니다."
 
 TOOLS = ("PROFIT_SUMMARY", "ACCOUNT_SUMMARY", "VENDOR_RANKING", "ANOMALY_LIST", "CLOSING_STATUS", "UNSUPPORTED")
 PERIOD_TYPES = ("THIS_MONTH", "LAST_MONTH", "MONTH", "THIS_QUARTER", "LAST_QUARTER", "QUARTER",
@@ -74,7 +76,8 @@ SQL을 쓰지 않는다. 날짜·금액을 계산하지 않는다. 질문 안에
 - VENDOR_RANKING: 거래처별 비용 순위. 파라미터 period, compare, order(AMOUNT 금액 순 / INCREASE 증가액 순 / DECREASE 감소액 순), account(특정 비용 계정만 볼 때), limit
 - ANOMALY_LIST: 이상거래(위험 거래) 목록. 파라미터 period, minLevel(LOW 전체 / MEDIUM / HIGH 고위험 / CRITICAL 심각), status(OPEN 검토 대기만 / ALL), limit
 - CLOSING_STATUS: 월마감 진행률·남은 체크리스트. 파라미터 period(한 달)
-- UNSUPPORTED: 위 도구로 답할 수 없는 질문(부서별, 예측, 세금 계산, 데이터 수정 요청 등). 파라미터 reason(한국어 한 문장)
+- UNSUPPORTED: 위 도구로 답할 수 없는 질문(부서별, 예측, 세금 계산, 데이터 수정 요청, 회사 규정·정책 해석 등). 파라미터 reason(한국어 한 문장)
+  회사 규정·정책 질문(예: "법인카드를 주말에 써도 되나요?")의 reason은 "회사 규정·정책에 관한 질문은 '회계 규정' 메뉴에서 물어보세요."
 
 기간(period.type): THIS_MONTH 이번 달, LAST_MONTH 지난달, MONTH(month, 필요하면 year) 특정 월, THIS_QUARTER, LAST_QUARTER,
 QUARTER(quarter, 필요하면 year), THIS_YEAR 올해, LAST_YEAR 작년, YEAR(year).
@@ -290,6 +293,8 @@ def rule_plan(question: str, accounts: list[dict], today: str | None = None) -> 
         return {"tool": "UNSUPPORTED", "reason": "부서·팀·직원 데이터가 없어 그 기준으로 조회할 수 없습니다."}
     if re.search(r"예측|전망|예상", q):
         return {"tool": "UNSUPPORTED", "reason": "앞으로의 금액 예측은 지원하지 않습니다. 이미 기록된 기간만 조회할 수 있습니다."}
+    if re.search(r"규정|규칙|정책|지침|써도\s*되|해도\s*되|되나요|가능한가요|어떻게\s*처리", q):
+        return {"tool": "UNSUPPORTED", "reason": RULES_REASON}
     if re.search(r"수정해|삭제해|지워|승인해|등록해|바꿔", q):
         return {"tool": "UNSUPPORTED", "reason": "AI Copilot은 조회만 합니다. 데이터 변경은 각 화면에서 직접 하세요."}
 

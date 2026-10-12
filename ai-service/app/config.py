@@ -23,6 +23,11 @@ class Settings:
     llm_timeout_s: float = float(os.getenv("LLM_TIMEOUT_S", "120"))
     # 모델이 없으면 worker 시작 때 Ollama에 내려받기를 요청한다 (첫 실행 수 분 소요)
     llm_pull_on_start: bool = os.getenv("LLM_PULL_ON_START", "true").lower() == "true"
+    # Phase 8 회계 규정 RAG (sentence-transformers). 차원은 backend app.rag.embedding-dims와 같아야 한다
+    embedding_model: str = os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-small")
+    embedding_dims: int = int(os.getenv("EMBEDDING_DIMS", "384"))
+    rag_queue_key: str = os.getenv("RAG_QUEUE_KEY", "ledgerguard:rag:jobs")
+    rag_worker_enabled: bool = os.getenv("RAG_WORKER_ENABLED", "true").lower() == "true"
 
 
 settings = Settings()

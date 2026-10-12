@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { api, ApiError } from "@/lib/api";
 import { EXPLANATION_STATUS_LABEL, type Explanation, type ExplanationStatus } from "@/lib/types";
 import { Badge, Button, ErrorBanner, formatDateTime } from "@/components/ui";
@@ -37,6 +37,7 @@ export function ExplanationPanel({
   memberName,
   onChanged,
   emptyText,
+  renderText,
 }: {
   explanation: Explanation | null;
   canWrite: boolean;
@@ -46,6 +47,8 @@ export function ExplanationPanel({
   memberName?: (id: number | null | undefined) => string;
   onChanged: () => void;
   emptyText: string;
+  /** 본문 표시 방식 (예: 규정 답변의 [번호] 인용을 링크로) */
+  renderText?: (text: string) => ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
@@ -127,7 +130,7 @@ export function ExplanationPanel({
             <Badge tone={TONE[e.status]}>{EXPLANATION_STATUS_LABEL[e.status]}</Badge>
             {meta.stale && <Badge tone="warn">근거가 바뀜</Badge>}
           </div>
-          <p className="whitespace-pre-line leading-relaxed">{e.text}</p>
+          <p className="whitespace-pre-line leading-relaxed">{renderText ? renderText(e.text ?? "") : e.text}</p>
           {e.checkpoints.length > 0 && (
             <ul className="space-y-1">
               {e.checkpoints.map((c) => (

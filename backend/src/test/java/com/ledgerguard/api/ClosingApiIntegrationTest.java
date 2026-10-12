@@ -36,6 +36,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 /**
  * Phase 6 월마감: 전표 집계 → 손익·전월/전년 동월 비교·주요 변동, 체크리스트, LLM 설명(요청·재생성·수정),
@@ -48,7 +49,8 @@ class ClosingApiIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
+            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
 
     /** LLM 작업을 붙잡아 두는 큐. 실제 worker 대신 테스트가 내부 콜백 API를 호출한다. */
     static class CapturingLlmQueue implements LlmJobQueue {

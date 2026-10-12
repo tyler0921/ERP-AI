@@ -46,6 +46,14 @@ export const ACTION_LABEL: Record<string, string> = {
   COPILOT_PLAN_EDIT: "AI Copilot 해석 수정",
   COPILOT_ANSWER_EDIT: "AI Copilot 답변 수정",
   COPILOT_ANSWER_REGENERATE: "AI Copilot 답변 다시 생성",
+  RULE_DOC_UPLOAD: "규정 문서 등록",
+  RULE_DOC_INDEXED: "규정 문서 색인 완료",
+  RULE_DOC_FAILED: "규정 문서 색인 실패",
+  RULE_DOC_REINDEX: "규정 문서 다시 색인",
+  RULE_DOC_ARCHIVE: "규정 문서 보관",
+  RULE_ASK: "규정 질문",
+  RULE_ANSWER_EDIT: "규정 답변 수정",
+  RULE_ANSWER_REGENERATE: "규정 답변 다시 생성",
 };
 
 export const TARGET_LABEL: Record<string, string> = {
@@ -64,6 +72,8 @@ export const TARGET_LABEL: Record<string, string> = {
   ANOMALY_SETTINGS: "탐지 기준",
   CLOSING_MONTH: "월마감",
   COPILOT_QUESTION: "AI Copilot 질문",
+  RULE_DOCUMENT: "규정 문서",
+  RULE_QUESTION: "규정 질문",
 };
 
 export function actionLabel(action: string): string {

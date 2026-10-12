@@ -58,6 +58,8 @@ def test_규칙_Planner(question, expected):
         ("3분기 접대비가 가장 많은 부서는 어디야?", "부서"),
         ("다음 달 매출 예측해줘", "예측"),
         ("9월 광고비 전표 삭제해줘", "조회만"),
+        ("법인카드를 주말에 써도 되나요?", "회계 규정"),
+        ("접대비 처리 규정 알려줘", "회계 규정"),
         ("안녕", "기간과 대상"),
     ],
 )
@@ -94,7 +96,7 @@ def test_LLM_계획이_형식에_맞으면_그대로_쓴다():
     result = make_plan({**CONTEXT, "question": "9월 광고비?"}, provider)
     assert result["source"] == "LLM"
     assert result["plan"] == plan
-    assert result["meta"]["promptVersion"] == "plan-v1"
+    assert result["meta"]["promptVersion"] == "plan-v2"
     system, user, schema = provider.calls[0]
     assert schema == SCHEMA
     assert "SQL을 쓰지 않는다" in system

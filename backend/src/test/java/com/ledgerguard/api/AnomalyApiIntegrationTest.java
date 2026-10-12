@@ -38,6 +38,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 /**
  * Phase 4 이상거래 탐지: 은행 CSV·거래 → 규칙 + ML(가짜 모델) → Risk Score → 검토·다시 열기·재분석,
@@ -50,7 +51,8 @@ class AnomalyApiIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
+            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
 
     /** 심야(22시 이후) 거래에만 높은 ML 점수를 주는 가짜 모델 */
     static class FakeModel implements AnomalyModelClient {

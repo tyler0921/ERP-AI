@@ -36,6 +36,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 /**
  * Phase 7 AI Copilot: 질문 → 계획 작업(큐) → 계획 콜백(검증·실행) → 답변 작업(큐) → 답변 콜백,
@@ -49,7 +50,8 @@ class CopilotApiIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
+            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
 
     static class CapturingLlmQueue implements LlmJobQueue {
         final List<LlmJob> jobs = new CopyOnWriteArrayList<>();

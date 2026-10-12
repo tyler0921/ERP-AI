@@ -16,7 +16,7 @@
 | **5** | **Local LLM** — Ollama(qwen2.5 7B, GPU 선택), LLM Provider 인터페이스, 이상거래 설명·분석 요약(Valkey 큐 비동기), 출력 검증·템플릿 대체, 수정·다시 생성 ([설계](docs/phase5-local-llm.md)) | **완료** |
 | **6** | **Closing Copilot** — 월별 손익 집계(계정과목·거래처), 전월·전년 동월 비교, 주요 변동 탐지, 마감 체크리스트·진행률, 마감 확정·취소(스냅샷·확정 이후 변경 표시), 월별 추이, 월마감 LLM 설명(증감 방향 검증) ([설계](docs/phase6-closing-copilot.md)) | **완료** |
 | **7** | **AI Copilot (Q&A)** — 자연어 질문 → LLM Query Planner(Tool 5개 중 선택, SQL 없음) → Spring 계획 검증·읽기 전용 Query Tool 실행 → LLM 답변(검증·요약 대체), 규칙 Planner 대체, 해석·답변 수정(Audit) ([설계](docs/phase7-copilot.md)) | **완료** |
-| 8 | 회계 규정 RAG | 예정 |
+| **8** | **회계 규정 RAG** — 규정 문서(PDF·DOCX·TXT·MD) 업로드 → 텍스트 추출·조문 단위 청킹 → sentence-transformers(multilingual-e5-small) 임베딩 → pgvector 저장, 질문 → 의미 검색 Top-K(회사 격리, 관련도 기준) → Ollama 근거 기반 답변(인용 번호·출처 표시, 검증·발췌 대체), 키워드 검색 대체, 보관·다시 색인 ([설계](docs/phase8-rules-rag.md)) | **완료** |
 
 ## 구조
 
@@ -32,12 +32,14 @@
 ├─ docs/phase5-local-llm.md
 ├─ docs/phase6-closing-copilot.md
 ├─ docs/phase7-copilot.md
+├─ docs/phase8-rules-rag.md
 ├─ ai-service/               # FastAPI / Python 3.12 / PaddleOCR 3.7 (CPU)
 │  ├─ app/ocr/               # OCR 엔진 인터페이스, PaddleOCR 구현, 이미지·PDF 로딩, 줄 묶기
 │  ├─ app/extraction/        # 영수증·세금계산서 규칙 기반 필드 추출 (금액·날짜·사업자번호 패턴)
 │  ├─ app/classification/    # 키워드 규칙 기반 계정과목 후보
 │  ├─ app/llm/               # LLM Provider(Ollama), 설명 프롬프트·출력 검증·템플릿 대체, LLM 큐 worker
 │  ├─ app/copilot/           # Copilot Query Planner: LLM 계획(구조화 출력)·형식 검증·보정, 키워드 규칙 Planner
+│  ├─ app/rag/               # 규정 RAG: 텍스트 추출(PDF·DOCX·TXT·MD)·조문 청킹, 임베딩(Embedder 인터페이스, sentence-transformers), 색인 worker
 │  ├─ app/anomaly/           # 이상탐지 ML: 특성 변환, IsolationForest(AnomalyModel 인터페이스), robust z 근거
 │  ├─ app/worker.py          # Valkey 큐 소비 → 처리 → backend 내부 API 콜백
 │  ├─ scripts/make_samples.py # 가상 영수증·세금계산서 샘플 생성
@@ -48,7 +50,7 @@
 │     ├─ app/api/            # BFF: auth/login·logout, backend/[...path] 프록시
 │     ├─ app/(auth)/         # 로그인, 회원가입
 │     ├─ app/companies/      # 회사 선택·등록
-│     ├─ app/c/[companyId]/  # Dashboard, 거래, 전표, 계정과목, 은행 대사, 증빙, 이상거래, 월마감, AI Copilot, Audit Log, 설정
+│     ├─ app/c/[companyId]/  # Dashboard, 거래, 전표, 계정과목, 은행 대사, 증빙, 이상거래, 월마감, AI Copilot, 회계 규정, Audit Log, 설정
 │     ├─ components/         # UI 프리미티브, 회사 셸·컨텍스트
 │     └─ lib/                # API 클라이언트, 금액(BigInt) 계산, 전표 검증, 날짜(KST)
 └─ backend/                  # Spring Boot 3.3 / Java 21 / Gradle
@@ -67,7 +69,8 @@
       ├─ explanation/        # LLM 설명 저장·요청(커밋 후 큐)·콜백 반영·수정·시간 초과 (AiExplanation)
       ├─ anomaly/            # 이상거래: 특성(AnomalyFeatureExtractor)·규칙(AnomalyRuleEngine)·점수(RiskScorer), ML 클라이언트, 검토
       ├─ closing/            # 월마감: 집계 쿼리, 손익 줄(ClosingStatement)·비교(ClosingMath)·주요 변동(VarianceDetector), 체크리스트, 마감 확정
-      └─ copilot/            # AI Copilot: 계획 검증(PlanValidator)·기간(PeriodResolver)·계정(AccountResolver)·Query Tool(CopilotTools), 계획 콜백
+      ├─ copilot/            # AI Copilot: 계획 검증(PlanValidator)·기간(PeriodResolver)·계정(AccountResolver)·Query Tool(CopilotTools), 계획 콜백
+      └─ rules/              # 회계 규정 RAG: 문서(형식 판별·SeaweedFS·색인 큐·콜백), 청크(pgvector, JDBC), 질문(임베딩 검색·키워드 대체·답변 요청)
 ```
 
 ## 실행
@@ -84,7 +87,9 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
 
 > 첫 실행 때 ai-service가 LLM 모델(`qwen2.5:7b-instruct`, 약 4.7GB)을 Ollama로 내려받아 `ledgerguard-ollama-models` 볼륨에 캐시한다. 내려받는 동안의 설명은 템플릿 요약으로 대체된다. 모델은 `.env`의 `LLM_MODEL`로 바꿀 수 있다.
 >
-> 첫 실행 때 ai-service가 OCR 모델(약 수십 MB)을 내려받아 `ledgerguard-ocr-models` 볼륨에 캐시한다. ai-service 이미지는 PaddlePaddle 때문에 2GB 이상이다.
+> 첫 실행 때 ai-service가 OCR 모델(약 수십 MB)과 임베딩 모델(`intfloat/multilingual-e5-small`, 약 470MB)을 내려받아 `ledgerguard-ocr-models` 볼륨에 캐시한다(임베딩 모델 첫 로딩 약 1분). ai-service 이미지는 PaddlePaddle과 CPU용 PyTorch 때문에 약 4GB다.
+>
+> 회계 규정 데모: `회계 규정` 화면의 샘플 링크(`경비처리규정_가상.md`, `법인카드사용규정_가상.txt`)를 내려받아 등록하면 몇 초 안에 색인되고, "접대비 한도는 얼마인가요?" 같은 질문에 출처 번호와 함께 답한다.
 
 - 웹: http://localhost:3000 (회원가입 → 회사 등록 → 기본 계정과목 자동 생성)
 - API: http://localhost:8080/api/v1
@@ -130,6 +135,8 @@ cd backend
 - `ClosingMathTest`·`VarianceDetectorTest`·`ClosingStatementTest` — 증감률(비교값 0·음수), 주요 변동 경계(1,000,000원·30%)·신규·소멸·정렬, 손익 합계·계정과목 정렬·거래처 표기 통합, LLM 근거 데이터
 - `PlanValidatorTest`·`PeriodAndAccountTest`·`CopilotToolsTest` — 계획 허용 목록·범위·기본값·모르는 필드 제거, 기호 기간 → 월 범위(진행 중 기간 자르기, 미래 거부, 비교 기간), 계정과목 별칭·부분 일치·후보 안내, 손익·계정·거래처 순위·이상거래 결과와 요약 문장, 답변 근거 표시 형식
 - `CopilotApiIntegrationTest` — 질문 → 계획 작업(커밋 후 큐, 질문·오늘·계정 이름만) → 계획 콜백(토큰·시도 번호) → Query Tool → 답변 작업·콜백, 답변 수정·다시 생성(Audit), 해석 수정(생성 중 답변 대체, Audit, 잘못된 해석 422), Tool별 결과(손익 전년 대비·분기, 계정 조건 거래처 순위, 이상거래 수준·상태, 월마감), 실패·재시도·실행 불가 계획·지원하지 않는 질문·동시 3개 제한·시간 초과, 본인 질문만·회사 격리 (**Docker 필요**)
+- `RagTextTest` — 규정 파일 형식 판별(PDF·DOCX·MD·CP949 텍스트), 파일 이름 정리, pgvector 리터럴 검증(차원·NaN), 키워드 검색어(조사·불용어), 번호 붙은 답변 근거
+- `RulesApiIntegrationTest` — 업로드(형식·중복·권한) → 색인 작업(커밋 후 큐) → 색인 콜백(토큰·시도 번호·차원 검증·빈 텍스트) → 다시 색인 → 청크·원본(attachment) → pgvector 검색(가짜 임베딩) → 답변 작업·콜백·수정·다시 생성, 관련 없음(NO_MATCH), 임베딩 장애 시 키워드 검색, 보관(검색 제외·스냅샷 유지), 시간 초과, 회사 격리 (**Docker 필요**, pgvector 이미지)
 - `ClosingApiIntegrationTest` — 가상 장부(2025-09·2026-08·2026-09)로 보고서 집계(취소 전표 제외)·비교·주요 변동·체크리스트·추이, 잘못된 월, LLM 설명 요청·재생성·수정·stale, 마감 확정(남은 항목 기록)·확정 이후 변경 표시·취소·재확정, 권한·회사 격리 (**Docker 필요**)
 
 ```bash
@@ -142,6 +149,7 @@ npm run lint && npm run build
 - `journal.test.ts` — 전표 폼 검증(1:N 균형, 차액, 차·대변 동시 입력, 행 번호 오류 메시지)
 - `dates.test.ts` — KST 기준 날짜, 월 범위
 - `anomaly.test.ts` — Risk Level 구간(서버와 동일), 기본 분석 기간, 기간 검증(366일), 특성 값 표시
+- `rules.test.ts` — 답변의 [번호] 인용 나누기(범위 밖 번호), 출처 표기
 - `copilot.test.ts` — 해석 편집 폼 정리(도구·기간 유형에 맞지 않는 값 제거), 폼 검증, 해석 표시
 - `closing.test.ts` — 월 이동(연도 경계), KST 기준 이번 달·기본 마감 월, 선택 가능한 월, 축 눈금, 만원 표기
 
@@ -157,6 +165,7 @@ docker compose run --rm -u root -v "$PWD/ai-service:/src" -w /src ai-service sh 
 - `test_ocr_samples.py` — 실제 PaddleOCR로 가상 영수증 PNG·세금계산서 PDF 전체 파이프라인 (Paddle 있는 환경에서만)
 - `test_anomaly.py` — 이상치가 가장 높은 점수, robust z 근거, 같은 입력 같은 점수, 표본 부족, 결측값 대체, 계정과목 빈도 인코딩, API
 - `test_llm.py` — 근거 그대로인 설명 통과, 만원·반올림 표기 허용, 근거에 없는 숫자·단정 표현·외국 문자·뒤집힌 "기준 초과"·길이·JSON 오류 시 템플릿 대체(거부된 출력 보존), LLM 장애, 템플릿은 항상 검증 통과, worker 메시지, Ollama 요청 형식(MockTransport)
+- `test_rag.py` — 마크다운·평문 규정의 장·조 섹션 경로, 조문 인용 줄 구분, 긴 문단 분할, 페이지, DOCX(제목 스타일)·PDF(텍스트 레이어)·CP949 추출, 색인 worker(passage 임베딩·파일 경로 검사), 규정 답변 검증(인용·발췌 밖 숫자·질문 금액 대입·단정 표현), citations 필드, "찾을 수 없음" 정규화, 발췌 템플릿
 - `test_copilot.py` — 규칙 Planner(spec 예시 질문 포함), 기간 표현·비교 표현, 답할 수 없는 질문, LLM 계획 형식 오류 시 대체, LLM 계획 보정(기간·계정과목, 실제 오류 사례), Copilot 답변 검증(항목 증감 방향, 근거 없는 순위 표현, 금액 없는 답변), 요약 템플릿, worker의 계획 콜백 경로
 - `test_closing_llm.py` — 월마감 설명: 근거 그대로인 설명 통과, 매출·비용·영업이익 증감 방향을 뒤집으면 대체(합계 이름 단위로 판단, 애매하면 통과), 근거 밖 숫자, 템플릿(변동·남은 항목 유무), worker 처리
 
@@ -194,7 +203,9 @@ docker compose run --rm -u root -v "$PWD/ai-service:/src" -w /src ai-service sh 
 - **월마감 설명:** 집계가 수시로 바뀌므로 자동 생성하지 않고 사람이 요청할 때만 만든다. LLM에는 계산된 문장(예: "8,000,000원 증가 (+66.7%)")만 보내고, 출력 검증에 매출·비용·영업이익의 증감 방향이 근거와 반대인지 확인하는 규칙을 더했다.
 - **AI Copilot — LLM은 계획만 고르고 조회·계산은 Spring:** 질문은 LLM(구조화 출력)이 미리 정의된 Query Tool 5개(손익·계정·거래처 순위·이상거래·월마감) 중 하나와 파라미터(기호 기간·계정 이름·정렬·수준·건수)로 바꾼다. SQL은 만들지 않고, 회사는 URL 경로에서만 정해진다. Spring이 계획을 허용 목록으로 다시 검증하고 기간을 실제 월 범위로 계산한 뒤 읽기 전용 쿼리를 실행한다. LLM이 실패하거나 형식이 틀리면 키워드 규칙 Planner로 대체하고, 실행할 수 없는 계획(없는 계정·한 달이 아닌 마감 질문)은 계획을 남긴 채 실패로 두어 사람이 해석을 고쳐 다시 조회한다.
 - **Copilot 답변:** Spring이 결과로 요약 문장을 만들어 LLM 답변의 근거이자 대체 답변으로 쓴다. 실제 7B 출력에서 본 오류(기간 바꿔치기, 계정 무시, 근거 없는 "가장 큰", 숫자 없는 추론)는 ai-service의 보정·검증 규칙으로 막았다. 결과 표와 계산 요약을 답변 옆에 항상 보여준다. 질문·답변은 질문한 사람만 보고, 동시에 해석 중인 질문은 3개까지다.
-- **권한별 UI:** 쓰기 버튼은 Role에 따라 숨기지만, 실제 권한 검사는 항상 백엔드가 한다. 아직 구현되지 않은 Phase 메뉴는 사이드바에 비활성으로 표시한다.
+- **회계 규정 RAG — 근거는 등록된 규정 발췌뿐:** 문서는 Spring이 SeaweedFS에 저장하고 색인 작업을 큐에 넣으며, ai-service가 텍스트 추출·조문 단위 청킹·임베딩(`intfloat/multilingual-e5-small`, 384차원, CPU)을 해 콜백한다. 벡터는 Spring이 pgvector에 저장·검색하고(ai-service는 DB에 접근하지 않음), 모든 검색에 회사 조건이 들어간다. 데이터가 작아 정확 검색을 쓰고 규모가 커지면 HNSW로 바꾼다. 질문 임베딩은 동기 호출(10초)이며 실패하면 키워드 검색으로 대체한다. e5 유사도는 범위가 좁아(관련 0.84~0.91, 무관 0.81~0.85) 절대 기준 0.83과 1위 대비 0.06 여유를 함께 쓴다.
+- **규정 답변 검증:** 각 문장에 발췌 번호를 달게 하고(구조화 출력 `citations`로도 받음), 숫자는 발췌에 있는 것만 허용한다. 질문의 금액을 규정 구간에 대입해 결론 내린 답은 거부되어 원문 발췌가 대신 보인다(금액 판정은 LLM에 맡기지 않음). 규정 원문의 "위반" 같은 표현은 허용한다. 답변 옆에 근거 발췌(출처·유사도)를 항상 보여주고, 인용 번호를 누르면 해당 발췌로 이동한다.
+- **권한별 UI:** 쓰기 버튼은 Role에 따라 숨기지만, 실제 권한 검사는 항상 백엔드가 한다.
 
 ## API 요약 (`/api/v1`)
 
@@ -213,12 +224,14 @@ docker compose run --rm -u root -v "$PWD/ai-service:/src" -w /src ai-service sh 
 | 이상거래 | `GET·PUT /companies/{cid}/anomaly-settings`, `POST /anomalies/scan`, `GET /anomalies/scans`, `GET /anomalies`, `GET …/summary`, `GET …/{id}`, `POST …/{id}/review·reopen`, `PUT …/{id}/explanation`, `POST …/{id}/explanation/regenerate`, `POST …/scans/{id}/summary/regenerate` |
 | 월마감 | `GET /companies/{cid}/closing/{yyyy-MM}`, `GET …/closing/trend?to=&months=`, `POST·PUT …/closing/{yyyy-MM}/explanation` (`?force=true` 다시 생성), `POST …/closing/{yyyy-MM}/close·reopen` |
 | AI Copilot | `POST·GET /companies/{cid}/copilot/questions`, `GET …/{id}`, `PUT …/{id}/plan`, `POST …/{id}/retry`, `PUT …/{id}/answer`, `POST …/{id}/answer/regenerate` |
+| 회계 규정 | `POST·GET /companies/{cid}/rules/documents` (multipart `file`, `title`, `category`), `GET …/{id}`·`/{id}/chunks`·`/{id}/file`, `POST …/{id}/reindex·archive`, `POST·GET /companies/{cid}/rules/questions`, `GET …/{id}`, `PUT …/{id}/answer`, `POST …/{id}/answer/regenerate` |
+| 내부(규정 색인) | `POST /internal/v1/rules/documents/{id}/index` (`X-Internal-Token`) |
 | 내부(Copilot 계획) | `POST /internal/v1/copilot/questions/{id}/plan` (`X-Internal-Token`) |
-| AI 서비스(FastAPI) | `POST /v1/anomaly/score` (backend가 호출, 저장 안 함), `POST /v1/explain`, `POST /v1/copilot/plan` (디버그·데모용) |
+| AI 서비스(FastAPI) | `POST /v1/anomaly/score` (backend가 호출, 저장 안 함), `POST /v1/embed` (backend가 질문 임베딩에 호출), `POST /v1/explain`, `POST /v1/copilot/plan` (디버그·데모용) |
 | 내부(LLM worker) | `POST /internal/v1/explanations/{id}/result` (`X-Internal-Token`) |
 | Audit Log | `GET /companies/{cid}/audit-logs` |
 
-권한: 조회는 ADMIN·ACCOUNTANT·VIEWER, 거래·전표·계정과목·은행 대사·증빙 변경과 이상거래 분석·판정·AI 설명(이상거래·월마감) 수정과 다시 생성은 ADMIN·ACCOUNTANT, 회사 정보·멤버 관리·탐지 기준 변경·월마감 확정과 취소는 ADMIN, Audit Log 조회는 ADMIN·ACCOUNTANT. AI Copilot 질문은 모든 멤버가 할 수 있고(조회만 함) 본인 질문만 보고 고칠 수 있다.
+권한: 조회는 ADMIN·ACCOUNTANT·VIEWER, 거래·전표·계정과목·은행 대사·증빙 변경과 이상거래 분석·판정·AI 설명(이상거래·월마감) 수정과 다시 생성은 ADMIN·ACCOUNTANT, 회사 정보·멤버 관리·탐지 기준 변경·월마감 확정과 취소는 ADMIN, Audit Log 조회는 ADMIN·ACCOUNTANT. AI Copilot·회계 규정 질문은 모든 멤버가 할 수 있고(조회만 함) 본인 질문만 보고 고칠 수 있다. 규정 문서 등록·다시 색인·보관은 ADMIN·ACCOUNTANT.
 
 오류 응답은 항상 `{ code, message, details[], timestamp }` 형식이다. (예: `JOURNAL_NOT_BALANCED`)
 

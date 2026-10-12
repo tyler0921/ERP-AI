@@ -63,6 +63,10 @@ public enum ErrorCode {
     COPILOT_STATE_INVALID(HttpStatus.CONFLICT, "현재 상태에서는 질문을 처리할 수 없습니다."),
     COPILOT_PLAN_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "질문 해석(조회 계획)이 올바르지 않습니다."),
 
+    RULE_FILE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "PDF, DOCX, TXT, MD 파일만 올릴 수 있습니다. (최대 10MB)"),
+    RULE_DUPLICATE(HttpStatus.CONFLICT, "같은 규정 파일이 이미 등록되어 있습니다."),
+    RULE_STATE_INVALID(HttpStatus.CONFLICT, "현재 상태에서는 규정 문서를 처리할 수 없습니다."),
+
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다."),
     DATA_INTEGRITY_VIOLATION(HttpStatus.CONFLICT, "데이터 무결성 제약을 위반했습니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");

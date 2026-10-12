@@ -20,7 +20,7 @@ const NAV: { href: string; label: string; phase?: number }[] = [
   { href: "anomalies", label: "이상거래" },
   { href: "closing", label: "월마감" },
   { href: "copilot", label: "AI Copilot" },
-  { href: "rules", label: "회계 규정", phase: 8 },
+  { href: "rules", label: "회계 규정" },
   { href: "audit-logs", label: "Audit Log" },
   { href: "settings", label: "설정" },
 ];

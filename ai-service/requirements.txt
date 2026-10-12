@@ -1,4 +1,6 @@
 # 런타임 의존성 (버전 고정)
+# torch는 CPU 전용 빌드를 받는다 (CUDA 빌드는 수 GB)
+--extra-index-url https://download.pytorch.org/whl/cpu
 fastapi==0.141.1
 uvicorn[standard]==0.53.0
 python-multipart==0.0.32
@@ -12,3 +14,10 @@ scikit-learn==1.9.1
 # OCR (CPU)
 paddlepaddle==3.3.1
 paddleocr==3.7.0
+# 회계 규정 RAG 임베딩 (sentence-transformers, CPU)
+torch==2.14.1+cpu
+sentence-transformers==6.1.0
+transformers==5.19.0
+tokenizers==0.23.3
+huggingface_hub==1.33.0
+safetensors==0.8.0

@@ -6,7 +6,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     # OCR 모델은 첫 실행 때 내려받아 볼륨(/models)에 캐시한다.
     PADDLE_PDX_CACHE_HOME=/models \
-    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
+    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True \
+    # 임베딩 모델(sentence-transformers)도 같은 볼륨에 캐시한다.
+    HF_HOME=/models/hf
 
 # libgl/glib: OpenCV, libgomp: Paddle, fonts-nanum: 샘플 영수증 이미지 생성용 한글 폰트
 RUN apt-get update \

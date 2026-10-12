@@ -33,7 +33,9 @@ public class AiExplanation {
         /** 이상거래 결과 한 건의 탐지 이유 */
         ANOMALY_RESULT,
         /** 이상거래 분석 한 번의 요약 */
-        ANOMALY_SCAN
+        ANOMALY_SCAN,
+        /** 월마감 보고서 (Phase 6) */
+        CLOSING_MONTH
     }
 
     public enum Status {

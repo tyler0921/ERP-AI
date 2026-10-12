@@ -56,6 +56,9 @@ public enum ErrorCode {
     ANOMALY_STATE_INVALID(HttpStatus.CONFLICT, "현재 상태에서는 처리할 수 없는 이상거래 결과입니다."),
     EXPLANATION_STATE_INVALID(HttpStatus.CONFLICT, "현재 상태에서는 설명을 처리할 수 없습니다."),
 
+    CLOSING_MONTH_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "월은 yyyy-MM 형식이어야 하며 미래의 월은 조회할 수 없습니다."),
+    CLOSING_STATE_INVALID(HttpStatus.CONFLICT, "현재 상태에서는 마감을 처리할 수 없습니다."),
+
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다."),
     DATA_INTEGRITY_VIOLATION(HttpStatus.CONFLICT, "데이터 무결성 제약을 위반했습니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");

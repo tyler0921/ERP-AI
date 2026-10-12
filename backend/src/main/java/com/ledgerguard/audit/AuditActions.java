@@ -54,6 +54,11 @@ public final class AuditActions {
     public static final String ANOMALY_EXPLANATION_EDIT = "ANOMALY_EXPLANATION_EDIT";
     public static final String ANOMALY_EXPLANATION_REGENERATE = "ANOMALY_EXPLANATION_REGENERATE";
 
+    public static final String CLOSING_CLOSE = "CLOSING_CLOSE";
+    public static final String CLOSING_REOPEN = "CLOSING_REOPEN";
+    public static final String CLOSING_EXPLANATION_EDIT = "CLOSING_EXPLANATION_EDIT";
+    public static final String CLOSING_EXPLANATION_REGENERATE = "CLOSING_EXPLANATION_REGENERATE";
+
     public static final String TARGET_USER = "USER";
     public static final String TARGET_COMPANY = "COMPANY";
     public static final String TARGET_MEMBER = "MEMBER";
@@ -67,4 +72,5 @@ public final class AuditActions {
     public static final String TARGET_ANOMALY_SCAN = "ANOMALY_SCAN";
     public static final String TARGET_ANOMALY_RESULT = "ANOMALY_RESULT";
     public static final String TARGET_ANOMALY_SETTINGS = "ANOMALY_SETTINGS";
+    public static final String TARGET_CLOSING_MONTH = "CLOSING_MONTH";
 }

@@ -34,16 +34,27 @@ export default function CompaniesPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
+    <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8 sm:py-12">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-accent">LEDGERGUARD AI</p>
-          <h1 className="mt-1 text-2xl font-semibold">회사 선택</h1>
-          {me.data && <p className="mt-1 text-sm text-ink-soft">{me.data.name} ({me.data.email})</p>}
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-xl bg-sidebar text-sm font-bold text-white shadow-md">LG</span>
+            <div>
+              <p className="text-sm font-bold">LedgerGuard</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-soft">Accounting AI</p>
+            </div>
+          </div>
         </div>
         <LogoutButton className="text-sm text-ink-soft hover:text-ink" />
       </div>
 
+      <section className="mb-6 rounded-2xl bg-sidebar px-6 py-6 text-white shadow-lg shadow-sidebar/10 sm:px-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#79d8b1]">Workspace</p>
+        <h1 className="mt-2 text-2xl font-bold tracking-[-0.035em]">작업할 회사를 선택하세요</h1>
+        {me.data && <p className="mt-2 text-sm text-white/55">{me.data.name} · {me.data.email}</p>}
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       <Card title="내 회사">
         {companies.loading && <Loading />}
         <div className="px-4">
@@ -53,34 +64,39 @@ export default function CompaniesPage() {
         <ul>
           {companies.data?.map((c) => (
             <li key={c.id} className="border-b border-line last:border-b-0">
-              <Link href={`/c/${c.id}/dashboard`} className="flex items-center justify-between px-4 py-3 hover:bg-paper">
-                <div>
-                  <p className="font-medium">{c.name}</p>
-                  <p className="num text-left text-xs text-ink-soft">{c.businessNo ?? "사업자번호 미등록"}</p>
+              <Link href={`/c/${c.id}/dashboard`} className="group flex items-center justify-between px-5 py-4 transition hover:bg-accent-soft/35">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-sm font-bold text-accent">{c.name.slice(0, 1)}</span>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{c.name}</p>
+                    <p className="num mt-0.5 text-left text-xs text-ink-soft">{c.businessNo ?? "사업자번호 미등록"}</p>
+                  </div>
                 </div>
-                <Badge tone={c.role === "ADMIN" ? "accent" : "neutral"}>{ROLE_LABEL[c.role]}</Badge>
+                <div className="flex items-center gap-3">
+                  <Badge tone={c.role === "ADMIN" ? "accent" : "neutral"}>{ROLE_LABEL[c.role]}</Badge>
+                  <span className="text-ink-soft/40 transition group-hover:translate-x-0.5 group-hover:text-accent">→</span>
+                </div>
               </Link>
             </li>
           ))}
         </ul>
       </Card>
 
-      <Card title="새 회사 등록" className="mt-6">
-        <form onSubmit={onCreate} className="grid gap-3 p-4 sm:grid-cols-[1fr_200px_auto] sm:items-end">
+      <Card title="새 회사 등록">
+        <form onSubmit={onCreate} className="space-y-4 p-5">
           <Field label="회사명">
-            <Input name="name" required maxLength={200} />
+            <Input name="name" required maxLength={200} placeholder="예: 레저가드 주식회사" />
           </Field>
           <Field label="사업자등록번호 (선택)">
             <Input name="businessNo" placeholder="123-45-67890" pattern="\d{3}-?\d{2}-?\d{5}" />
           </Field>
-          <Button type="submit" variant="primary" disabled={pending}>
-            등록
+          <Button type="submit" variant="primary" className="w-full" disabled={pending}>
+            {pending ? "등록 중…" : "회사 등록"}
           </Button>
-          <div className="sm:col-span-3">
-            <ErrorBanner error={error} />
-          </div>
+          <ErrorBanner error={error} />
         </form>
       </Card>
+      </div>
     </main>
   );
 }

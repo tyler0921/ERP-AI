@@ -39,8 +39,9 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">로그인</h1>
-        <p className="mt-1 text-sm text-ink-soft">회계 데이터에 접근하려면 로그인하세요.</p>
+        <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-accent">Welcome back</p>
+        <h1 className="text-2xl font-bold tracking-[-0.03em]">로그인</h1>
+        <p className="mt-2 text-sm leading-6 text-ink-soft">업무를 이어서 진행하려면 계정으로 로그인하세요.</p>
       </div>
       <ErrorBanner error={error} />
       <Field label="이메일">
@@ -49,10 +50,10 @@ export function LoginForm() {
       <Field label="비밀번호">
         <Input name="password" type="password" autoComplete="current-password" required />
       </Field>
-      <Button type="submit" variant="primary" className="w-full py-2" disabled={pending}>
+      <Button type="submit" variant="primary" className="mt-1 w-full py-2.5" disabled={pending}>
         {pending ? "로그인 중…" : "로그인"}
       </Button>
-      <p className="text-center text-sm text-ink-soft">
+      <p className="border-t border-line pt-4 text-center text-sm text-ink-soft">
         계정이 없나요?{" "}
         <Link href="/signup" className="font-medium text-accent hover:underline">
           회원가입

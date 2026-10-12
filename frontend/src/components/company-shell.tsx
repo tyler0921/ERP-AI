@@ -9,21 +9,40 @@ import { CompanyProvider } from "@/components/company-context";
 import { ErrorBanner, Loading } from "@/components/ui";
 import { LogoutButton } from "@/components/logout-button";
 
-// 사이드바는 spec의 전체 화면 구성을 보여주되, 아직 구현되지 않은 Phase의 메뉴는 비활성으로 표시한다.
-const NAV: { href: string; label: string; phase?: number }[] = [
-  { href: "dashboard", label: "Dashboard" },
-  { href: "transactions", label: "거래" },
-  { href: "journal-entries", label: "전표" },
-  { href: "accounts", label: "계정과목" },
-  { href: "documents", label: "증빙 문서" },
-  { href: "reconciliation", label: "은행 대사" },
-  { href: "anomalies", label: "이상거래" },
-  { href: "closing", label: "월마감" },
-  { href: "copilot", label: "AI Copilot" },
-  { href: "rules", label: "회계 규정" },
-  { href: "audit-logs", label: "Audit Log" },
-  { href: "settings", label: "설정" },
+const NAV = [
+  {
+    label: "Overview",
+    items: [{ href: "dashboard", label: "대시보드" }],
+  },
+  {
+    label: "회계 업무",
+    items: [
+      { href: "transactions", label: "거래" },
+      { href: "journal-entries", label: "전표" },
+      { href: "accounts", label: "계정과목" },
+      { href: "documents", label: "증빙 문서" },
+      { href: "reconciliation", label: "은행 대사" },
+      { href: "closing", label: "월마감" },
+    ],
+  },
+  {
+    label: "AI 분석",
+    items: [
+      { href: "anomalies", label: "이상거래" },
+      { href: "copilot", label: "AI Copilot", badge: "AI" },
+      { href: "rules", label: "회계 규정" },
+    ],
+  },
+  {
+    label: "관리",
+    items: [
+      { href: "audit-logs", label: "감사 로그" },
+      { href: "settings", label: "설정" },
+    ],
+  },
 ];
+
+const ALL_NAV = NAV.flatMap((group) => group.items);
 
 export function CompanyShell({ children }: { children: ReactNode }) {
   const { companyId } = useParams<{ companyId: string }>();
@@ -31,56 +50,94 @@ export function CompanyShell({ children }: { children: ReactNode }) {
   const { data: company, error, reload } = useApi<Company>(/^\d+$/.test(companyId) ? `/companies/${companyId}` : null);
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col bg-sidebar text-sidebar-ink md:flex">
-        <div className="border-b border-white/10 px-4 py-4">
-          <p className="text-[11px] font-semibold tracking-widest text-white/60">LEDGERGUARD AI</p>
-          <Link href="/companies" className="mt-1 block truncate text-sm font-semibold text-white hover:underline" title="회사 전환">
-            {company?.name ?? "…"}
+    <div className="flex min-h-screen bg-paper">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/5 bg-sidebar text-sidebar-ink md:flex">
+        <div className="px-5 pb-4 pt-5">
+          <Link href="/companies" className="flex items-center gap-3 text-white" aria-label="LedgerGuard AI 회사 선택">
+            <span className="grid size-9 place-items-center rounded-xl bg-accent text-sm font-bold shadow-lg shadow-black/20">LG</span>
+            <span>
+              <span className="block text-sm font-bold tracking-tight">LedgerGuard</span>
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-white/45">Accounting AI</span>
+            </span>
           </Link>
-          {company && <p className="mt-0.5 text-xs">{ROLE_LABEL[company.role]}</p>}
+          <Link
+            href="/companies"
+            className="mt-5 block rounded-xl border border-white/10 bg-white/[0.045] px-3.5 py-3 transition hover:border-white/20 hover:bg-white/[0.07]"
+            title="회사 전환"
+          >
+            <span className="block text-[10px] font-semibold uppercase tracking-wider text-white/40">현재 회사</span>
+            <span className="mt-1 flex items-center justify-between gap-2">
+              <span className="truncate text-sm font-semibold text-white">{company?.name ?? "불러오는 중"}</span>
+              <span className="text-white/35">↗</span>
+            </span>
+            {company && <span className="mt-1 block text-xs text-sidebar-ink">{ROLE_LABEL[company.role]}</span>}
+          </Link>
         </div>
-        <nav className="flex-1 overflow-y-auto px-2 py-3">
-          {NAV.map((item) => {
-            const href = `/c/${companyId}/${item.href}`;
-            const active = pathname === href || pathname.startsWith(`${href}/`);
-            if (item.phase) {
-              return (
-                <span key={item.href} className="flex cursor-default items-center justify-between rounded px-2.5 py-1.5 text-sm text-white/30" title={`Phase ${item.phase}에서 제공 예정`}>
-                  {item.label}
-                  <span className="text-[10px]">P{item.phase}</span>
-                </span>
-              );
-            }
-            return (
-              <Link
-                key={item.href}
-                href={href}
-                className={`block rounded px-2.5 py-1.5 text-sm ${active ? "bg-white/10 font-medium text-white" : "hover:bg-white/5 hover:text-white"}`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 overflow-y-auto px-3 pb-4" aria-label="주요 메뉴">
+          {NAV.map((group) => (
+            <div key={group.label} className="mb-4">
+              <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/30">{group.label}</p>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const href = `/c/${companyId}/${item.href}`;
+                  const active = pathname === href || pathname.startsWith(`${href}/`);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={href}
+                      aria-current={active ? "page" : undefined}
+                      className={`group flex items-center justify-between rounded-lg px-3 py-2 text-sm transition ${
+                        active ? "bg-white/10 font-semibold text-white shadow-sm" : "hover:bg-white/[0.055] hover:text-white"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <span className={`size-1.5 rounded-full transition ${active ? "bg-[#67d5a7]" : "bg-white/20 group-hover:bg-white/40"}`} />
+                        {item.label}
+                      </span>
+                      {item.badge && <span className="rounded bg-accent/30 px-1.5 py-0.5 text-[9px] font-bold text-[#8ce4bd]">{item.badge}</span>}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
-        <div className="border-t border-white/10 px-4 py-3">
-          <LogoutButton className="text-xs hover:text-white" />
+        <div className="border-t border-white/10 px-5 py-4">
+          <div className="mb-3 flex items-center gap-2 text-[11px] text-white/45">
+            <span className="size-1.5 rounded-full bg-[#67d5a7] shadow-[0_0_0_3px_rgb(103_213_167/0.12)]" />
+            모든 시스템 정상
+          </div>
+          <LogoutButton className="text-xs font-medium hover:text-white" />
         </div>
       </aside>
 
       <div className="min-w-0 flex-1">
-        {/* 모바일용 간단 네비게이션 */}
-        <nav className="flex gap-1 overflow-x-auto border-b border-line bg-surface px-3 py-2 md:hidden">
-          <Link href="/companies" className="shrink-0 rounded px-2 py-1 text-sm font-semibold">
-            {company?.name ?? "…"}
-          </Link>
-          {NAV.filter((n) => !n.phase).map((item) => (
-            <Link key={item.href} href={`/c/${companyId}/${item.href}`} className="shrink-0 rounded px-2 py-1 text-sm text-ink-soft">
-              {item.label}
+        <div className="sticky top-0 z-20 border-b border-line bg-surface/95 backdrop-blur md:hidden">
+          <div className="flex items-center justify-between px-4 py-3">
+            <Link href="/companies" className="flex min-w-0 items-center gap-2">
+              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-sidebar text-[10px] font-bold text-white">LG</span>
+              <span className="truncate text-sm font-bold">{company?.name ?? "LedgerGuard"}</span>
             </Link>
-          ))}
-        </nav>
-        <main className="mx-auto max-w-6xl px-4 py-6 md:px-8">
+            {company && <span className="rounded-full bg-accent-soft px-2 py-1 text-[10px] font-semibold text-accent">{ROLE_LABEL[company.role]}</span>}
+          </div>
+          <nav className="flex gap-1 overflow-x-auto px-3 pb-2" aria-label="모바일 메뉴">
+            {ALL_NAV.map((item) => {
+              const href = `/c/${companyId}/${item.href}`;
+              const active = pathname === href || pathname.startsWith(`${href}/`);
+              return (
+                <Link
+                  key={item.href}
+                  href={href}
+                  aria-current={active ? "page" : undefined}
+                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium ${active ? "bg-sidebar text-white" : "text-ink-soft"}`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 md:px-8 md:py-8 xl:px-10">
           {error ? (
             <div className="space-y-3">
               <ErrorBanner error={error} />

@@ -2,20 +2,22 @@
 
 /* LedgerGuard 디자인 토큰 — 장부(ledger) 느낌의 차분한 종이색 + 잉크색, 강조는 짙은 녹색 */
 :root {
-  --paper: #f6f5f1;
+  --paper: #f4f6f3;
   --surface: #ffffff;
-  --ink: #1b1f24;
-  --ink-soft: #5b636e;
-  --line: #e2dfd7;
-  --line-strong: #cbc7bc;
-  --accent: #1f5f4a;
-  --accent-soft: #e4efe9;
+  --ink: #17201c;
+  --ink-soft: #66716b;
+  --line: #e3e8e4;
+  --line-strong: #cbd4ce;
+  --accent: #176b4d;
+  --accent-soft: #e5f3ec;
   --danger: #a3321f;
   --danger-soft: #f7e6e2;
   --warn: #8a5a00;
   --warn-soft: #f8eed8;
-  --sidebar: #15191e;
-  --sidebar-ink: #c8ccd2;
+  --sidebar: #101b17;
+  --sidebar-ink: #b9c6c0;
+  --blue: #3166a8;
+  --blue-soft: #e8eff8;
 }
 
 @theme inline {
@@ -33,6 +35,8 @@
   --color-warn-soft: var(--warn-soft);
   --color-sidebar: var(--sidebar);
   --color-sidebar-ink: var(--sidebar-ink);
+  --color-blue: var(--blue);
+  --color-blue-soft: var(--blue-soft);
   --font-sans: var(--font-plex-kr), system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
@@ -41,6 +45,17 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* 금액은 고정폭 숫자로 정렬. components 레이어에 두어 text-left 같은 유틸리티로 덮어쓸 수 있게 한다. */
@@ -55,4 +70,18 @@ body {
 
 dialog::backdrop {
   background: rgb(21 25 30 / 0.45);
+  backdrop-filter: blur(3px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  main > * {
+    animation: enter 240ms ease-out both;
+  }
 }
